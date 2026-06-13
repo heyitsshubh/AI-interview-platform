@@ -59,6 +59,13 @@ async def lifespan(app: FastAPI):
     logger.info(f"🚀 Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     _configure_logging()
     _create_storage_directories()
+    
+    from app.core.database import create_tables
+    try:
+        await create_tables()
+    except Exception as e:
+        logger.error(f"Error creating tables: {e}")
+
     await _seed_database()
     logger.info("✅ Application startup complete")
 
@@ -127,6 +134,13 @@ A production-grade AI Interview SaaS Platform.
         }
 
     # ── Routers ───────────────────────────────────────────────────────────────
+    # Import all models first to populate SQLAlchemy registry
+    from app.modules.users.model import User
+    from app.modules.roles.model import Role, Permission, UserRole, RolePermission
+    from app.modules.resumes.model import Resume
+    from app.modules.interviews.model import Interview, Question, Answer, Report, Job
+    from app.modules.cheating.model import CheatingEvent
+
     from app.modules.auth.routes import router as auth_router
     from app.modules.resumes.routes import router as resume_router
     from app.modules.interviews.routes import router as interview_router
