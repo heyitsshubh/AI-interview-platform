@@ -44,7 +44,8 @@
         {
           "microphonePermission": "Allow AI Interview Platform to access your microphone for voice interviews."
         }
-      ]
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true

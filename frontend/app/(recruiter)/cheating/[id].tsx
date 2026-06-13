@@ -6,8 +6,8 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, router } from 'expo-router';
-import { Colors } from '../../../../src/theme/colors';
-import { CheatingService, CheatingReport, CheatingEvent } from '../../../../src/services/cheatingService';
+import { Colors } from '../../../src/theme/colors';
+import { CheatingService, CheatingReport, CheatingEvent } from '../../../src/services/cheatingService';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const SEVERITY_COLOR = { LOW: Colors.success, MEDIUM: Colors.warning, HIGH: Colors.danger };

@@ -39,7 +39,7 @@ function getStatusIcon(status: Interview['status']): keyof typeof Ionicons.glyph
     case 'ACTIVE': return 'play-circle';
     case 'PENDING': return 'time';
     case 'CANCELLED': return 'close-circle';
-    default: return 'ellipse';
+    default: return 'ellipse'; 
   }
 }
 
