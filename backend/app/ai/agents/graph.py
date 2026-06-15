@@ -49,13 +49,13 @@ def _build_full_pipeline() -> StateGraph:
     """Full pipeline: Resume → Questions → Evaluate → Report."""
     graph = StateGraph(InterviewState)
 
-    graph.add_node("resume_analysis", resume_analysis_node)
+    graph.add_node("analyze_resume", resume_analysis_node)
     graph.add_node("generate_questions", generate_questions_node)
     graph.add_node("evaluate_answers", evaluate_answers_node)
     graph.add_node("generate_report", generate_report_node)
 
-    graph.add_edge(START, "resume_analysis")
-    graph.add_edge("resume_analysis", "generate_questions")
+    graph.add_edge(START, "analyze_resume")
+    graph.add_edge("analyze_resume", "generate_questions")
     graph.add_edge("generate_questions", "evaluate_answers")
     graph.add_edge("evaluate_answers", "generate_report")
     graph.add_edge("generate_report", END)
@@ -69,11 +69,11 @@ def _build_question_graph() -> StateGraph:
     """Lighter graph: Resume → Questions only (used when starting interview)."""
     graph = StateGraph(InterviewState)
 
-    graph.add_node("resume_analysis", resume_analysis_node)
+    graph.add_node("analyze_resume", resume_analysis_node)
     graph.add_node("generate_questions", generate_questions_node)
 
-    graph.add_edge(START, "resume_analysis")
-    graph.add_edge("resume_analysis", "generate_questions")
+    graph.add_edge(START, "analyze_resume")
+    graph.add_edge("analyze_resume", "generate_questions")
     graph.add_edge("generate_questions", END)
 
     return graph.compile()
