@@ -169,12 +169,33 @@ A production-grade AI Interview SaaS Platform.
         try:
             model = get_embedding_model()
             await model.aembed_query("test")
-            results["gemini"] = {"status": "success", "has_key": bool(settings.GEMINII_API_KEY)}
+            results["gemini"] = {"status": "success", "has_key": bool(settings.GEMINI_API_KEY)}
         except Exception as e:
-            results["gemini"] = {"status": "error", "message": str(e), "has_key": bool(settings.GEMINII_API_KEY)}
+            results["gemini"] = {"status": "error", "message": str(e), "has_key": bool(settings.GEMINI_API_KEY)}
 
         # Internal Worker Key
         results["worker_key"] = {"configured": bool(settings.INTERNAL_API_KEY)}
+        
+        # Check BullMQ Queues
+        try:
+            client = get_redis_client()
+            waiting = client.zcard("bull:resume-processing:wait")
+            active = client.zcard("bull:resume-processing:active")
+            failed = client.zcard("bull:resume-processing:failed")
+            
+            # BullMQ v5 might use Lists or Zsets depending on configuration, check both
+            if not waiting:
+                waiting = client.llen("bull:resume-processing:wait")
+            
+            results["queues"] = {
+                "resume-processing": {
+                    "waiting": waiting,
+                    "active": active,
+                    "failed": failed
+                }
+            }
+        except Exception as e:
+            results["queues"] = {"status": "error", "message": str(e)}
             
         return results
 

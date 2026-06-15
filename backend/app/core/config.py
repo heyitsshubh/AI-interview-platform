@@ -45,6 +45,7 @@ class Settings(BaseSettings):
 
     # AI Providers
     GEMINI_API_KEY: str = ""
+    GEMINII_API_KEY: str = ""  # Fallback for user's custom naming
 
     # Google Cloud (Speech-to-Text)
     GOOGLE_APPLICATION_CREDENTIALS: str = ""
