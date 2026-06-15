@@ -24,6 +24,7 @@ def get_redis_client() -> Redis:
         _redis_client = Redis(
             host=settings.REDIS_HOST,
             port=settings.REDIS_PORT,
+            password=settings.REDIS_PASSWORD,
             decode_responses=False,
         )
         logger.info(f"Redis client connected: {settings.REDIS_HOST}:{settings.REDIS_PORT}")
