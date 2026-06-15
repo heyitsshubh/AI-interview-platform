@@ -18,6 +18,17 @@ def get_redis_opts() -> dict:
         "ssl": use_ssl,
     }
 
+def get_redis_client():
+    from redis import Redis
+    use_ssl = "upstash.io" in settings.REDIS_HOST
+    return Redis(
+        host=settings.REDIS_HOST,
+        port=settings.REDIS_PORT,
+        password=settings.REDIS_PASSWORD,
+        ssl=use_ssl,
+        decode_responses=False,
+    )
+
 async def add_job(queue_name: str, job_name: str, data: dict) -> str:
     """
     Add a job to a BullMQ queue using the official Python client.
