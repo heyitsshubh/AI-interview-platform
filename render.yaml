@@ -45,6 +45,24 @@ services:
       # SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD
       # SMTP_FROM, SMTP_FROM_NAME
 
+  # ─── Background Worker ────────────────────────────────────────────
+  - type: worker
+    name: ai-interview-worker
+    runtime: node
+    rootDir: worker
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_BASE_URL
+        value: https://ai-interview-platform-7m8j.onrender.com
+      # The rest must be added in the Render Dashboard to match the backend:
+      # REDIS_HOST, REDIS_PORT, REDIS_PASSWORD
+      # INTERNAL_API_KEY (copy from Backend)
+      # OPENAI_API_KEY
+      # SMTP variables
+
   # ─── PostgreSQL Database ──────────────────────────────────────────
 databases:
   - name: ai-interview-db
