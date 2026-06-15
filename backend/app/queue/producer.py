@@ -21,10 +21,12 @@ def get_redis_client() -> Redis:
     """Lazy-init Redis client singleton."""
     global _redis_client
     if _redis_client is None:
+        use_ssl = "upstash.io" in settings.REDIS_HOST
         _redis_client = Redis(
             host=settings.REDIS_HOST,
             port=settings.REDIS_PORT,
             password=settings.REDIS_PASSWORD,
+            ssl=use_ssl,
             decode_responses=False,
         )
         logger.info(f"Redis client connected: {settings.REDIS_HOST}:{settings.REDIS_PORT}")
