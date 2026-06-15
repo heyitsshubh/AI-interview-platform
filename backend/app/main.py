@@ -169,9 +169,9 @@ A production-grade AI Interview SaaS Platform.
         try:
             model = get_embedding_model()
             await model.aembed_query("test")
-            results["gemini"] = {"status": "success", "has_key": bool(settings.GEMINI_API_KEY)}
+            results["gemini"] = {"status": "success", "has_key": bool(settings.GEMINII_API_KEY)}
         except Exception as e:
-            results["gemini"] = {"status": "error", "message": str(e), "has_key": bool(settings.GEMINI_API_KEY)}
+            results["gemini"] = {"status": "error", "message": str(e), "has_key": bool(settings.GEMINII_API_KEY)}
 
         # Internal Worker Key
         results["worker_key"] = {"configured": bool(settings.INTERNAL_API_KEY)}
