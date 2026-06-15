@@ -49,7 +49,11 @@ class AuthRepository:
         result = await db.execute(select(Role).where(Role.name == role_name))
         role = result.scalar_one_or_none()
         if role is None:
-            raise ValueError(f"Role '{role_name}' not found. Run role seeding first.")
+            # Auto-seed the role if it's missing (helps recover from failed startup seeding)
+            role = Role(name=role_name)
+            db.add(role)
+            await db.flush()
+            logger.info(f"Auto-created missing role: {role_name}")
 
         user_role = UserRole(user_id=user_id, role_id=role.id)
         db.add(user_role)

@@ -1,7 +1,7 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { TokenStorage } from '../utils/tokenStorage';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.100:8000';
+const API_BASE_URL = 'https://ai-interview-platform-7m8j.onrender.com';
 
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
