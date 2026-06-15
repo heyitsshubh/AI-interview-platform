@@ -3,6 +3,19 @@
  * Starts all BullMQ workers and handles graceful shutdown.
  */
 import 'dotenv/config';
+import http from 'http';
+
+// Create a dummy HTTP server so Render thinks this is a valid Web Service
+// This allows running the worker on the Free Tier instead of paying for a Background Worker
+const port = process.env.PORT || 3000;
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ status: 'Worker is running normally' }));
+});
+
+server.listen(port, () => {
+  console.log(`🌐 Dummy Web Server listening on port ${port} (to satisfy Render health checks)`);
+});
 
 console.log('🚀 AI Interview Platform — Worker Service Starting...');
 console.log(`📡 Redis: ${process.env.REDIS_HOST || 'redis'}:${process.env.REDIS_PORT || 6379}`);

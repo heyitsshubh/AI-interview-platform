@@ -46,7 +46,7 @@ services:
       # SMTP_FROM, SMTP_FROM_NAME
 
   # ─── Background Worker ────────────────────────────────────────────
-  - type: worker
+  - type: web
     name: ai-interview-worker
     runtime: node
     rootDir: worker
