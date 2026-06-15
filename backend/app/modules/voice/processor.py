@@ -1,8 +1,9 @@
 """
-Voice audio processing using Google Cloud Speech-to-Text.
+Voice audio processing using OpenAI Whisper API.
 """
 import logging
 import io
+from openai import AsyncOpenAI
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -12,57 +13,37 @@ settings = get_settings()
 class VoiceProcessor:
     def __init__(self):
         self._client = None
-
-    def _get_client(self):
-        """Lazy init Google Speech client."""
-        if self._client is None:
-            try:
-                from google.cloud import speech
-                import os
-                if settings.GOOGLE_APPLICATION_CREDENTIALS:
-                    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = settings.GOOGLE_APPLICATION_CREDENTIALS
-                self._client = speech.SpeechClient()
-            except ImportError:
-                logger.warning("google-cloud-speech not installed. Voice transcription disabled.")
-                self._client = None
-        return self._client
+        if settings.OPENAI_API_KEY:
+            self._client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        else:
+            logger.warning("OPENAI_API_KEY not found. Voice transcription disabled.")
 
     async def transcribe_audio_chunk(self, audio_bytes: bytes, sample_rate: int = 16000) -> str:
         """
-        Transcribe audio bytes using Google Cloud Speech-to-Text.
+        Transcribe audio bytes using OpenAI Whisper.
         Returns transcribed text string.
         """
-        client = self._get_client()
-        if client is None:
+        if not self._client:
             return "[Voice transcription unavailable]"
 
         try:
-            from google.cloud import speech
+            # Create a file-like object for OpenAI
+            audio_file = io.BytesIO(audio_bytes)
+            audio_file.name = "audio.webm"  # OpenAI requires a filename to guess the format
 
-            audio = speech.RecognitionAudio(content=audio_bytes)
-            config = speech.RecognitionConfig(
-                encoding=speech.RecognitionConfig.AudioEncoding.WEBM_OPUS,
-                sample_rate_hertz=sample_rate,
-                language_code="en-US",
-                enable_automatic_punctuation=True,
-                model="latest_long",
-                use_enhanced=True,
+            response = await self._client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file,
+                response_format="text"
             )
-
-            response = client.recognize(config=config, audio=audio)
-            if not response.results:
-                return ""
-
-            transcript = " ".join(
-                result.alternatives[0].transcript
-                for result in response.results
-                if result.alternatives
-            )
+            
+            # The response is directly a string when response_format="text"
+            transcript = str(response).strip()
             logger.info(f"Transcribed {len(audio_bytes)} bytes: '{transcript[:50]}...'")
             return transcript
 
         except Exception as exc:
-            logger.error(f"Speech-to-Text error: {exc}")
+            logger.error(f"OpenAI Speech-to-Text error: {exc}")
             return ""
 
     async def transcribe_audio_file(self, file_path: str) -> str:
@@ -73,39 +54,8 @@ class VoiceProcessor:
 
     async def detect_external_voices(self, audio_bytes: bytes) -> bool:
         """
-        Detect if multiple speakers are present in the audio.
-        Returns True if external voices detected (potential cheating).
+        OpenAI Whisper does not natively support speaker diarization.
+        Returning False to bypass cheating detection for multiple speakers.
+        (Other cheating detection like tab switching still works).
         """
-        client = self._get_client()
-        if client is None:
-            return False
-
-        try:
-            from google.cloud import speech
-
-            audio = speech.RecognitionAudio(content=audio_bytes)
-            config = speech.RecognitionConfig(
-                encoding=speech.RecognitionConfig.AudioEncoding.WEBM_OPUS,
-                sample_rate_hertz=16000,
-                language_code="en-US",
-                enable_speaker_diarization=True,
-                diarization_speaker_count=2,
-                model="latest_long",
-            )
-
-            response = client.recognize(config=config, audio=audio)
-            if not response.results:
-                return False
-
-            last_result = response.results[-1]
-            if not last_result.alternatives:
-                return False
-
-            words = last_result.alternatives[0].words
-            speaker_tags = {word.speaker_tag for word in words}
-            # More than 1 speaker tag = external voice detected
-            return len(speaker_tags) > 1
-
-        except Exception as exc:
-            logger.error(f"Speaker detection error: {exc}")
-            return False
+        return False
