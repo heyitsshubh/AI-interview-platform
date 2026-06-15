@@ -133,22 +133,43 @@ A production-grade AI Interview SaaS Platform.
             "version": settings.APP_VERSION,
         }
 
-    @app.get("/api/debug/db", tags=["Debug"])
-    async def debug_db():
+    @app.get("/api/debug/system", tags=["Debug"])
+    async def debug_system():
         from app.core.database import engine, create_tables
         from sqlalchemy import text
+        from app.queue.producer import get_redis_client
+        import traceback
+        
+        results = {}
+        
+        # Test DB
         try:
-            # Test 1: Can we create tables?
             await create_tables()
-            
-            # Test 2: Can we select 1?
             async with engine.connect() as conn:
                 await conn.execute(text("SELECT 1"))
-            
-            return {"status": "success", "db_url": settings.async_database_url.split("@")[-1]} # only show host to be safe
+            results["database"] = {"status": "success", "db_url": settings.async_database_url.split("@")[-1]}
         except Exception as e:
-            import traceback
-            return {"status": "error", "message": str(e), "traceback": traceback.format_exc()}
+            results["database"] = {"status": "error", "message": str(e), "traceback": traceback.format_exc()}
+            
+        # Test Redis
+        try:
+            client = get_redis_client()
+            client.ping()
+            results["redis"] = {
+                "status": "success", 
+                "host": settings.REDIS_HOST,
+                "has_password": bool(settings.REDIS_PASSWORD)
+            }
+        except Exception as e:
+            results["redis"] = {
+                "status": "error", 
+                "host": settings.REDIS_HOST,
+                "has_password": bool(settings.REDIS_PASSWORD),
+                "message": str(e), 
+                "traceback": traceback.format_exc()
+            }
+            
+        return results
 
     # ── Routers ───────────────────────────────────────────────────────────────
     # Import all models first to populate SQLAlchemy registry
