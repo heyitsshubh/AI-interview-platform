@@ -71,11 +71,13 @@ async def extract_resume_text(
         resume.extracted_text = text
         resume.status = "PROCESSING"
         await db.flush()
+        await db.commit()
         return {"resume_id": str(resume_id), "text_length": len(text), "status": "PROCESSING"}
     except Exception as exc:
         logger.error(f"Text extraction failed for resume {resume_id}: {exc}")
         resume.status = "FAILED"
         await db.flush()
+        await db.commit()
         raise HTTPException(status_code=500, detail=str(exc))
 
 
@@ -106,11 +108,13 @@ async def generate_resume_embeddings(
         resume.embedding_path = index_path
         resume.status = "DONE"
         await db.flush()
+        await db.commit()
         return {"resume_id": str(resume_id), "embedding_path": index_path, "status": "DONE"}
     except Exception as exc:
         logger.error(f"Embedding generation failed for resume {resume_id}: {exc}")
         resume.status = "FAILED"
         await db.flush()
+        await db.commit()
         raise HTTPException(status_code=500, detail=str(exc))
 
 

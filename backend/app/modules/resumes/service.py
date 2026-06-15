@@ -64,6 +64,7 @@ class ResumeService:
         )
         db.add(resume)
         await db.flush()
+        await db.commit()
         await db.refresh(resume)
 
         # Enqueue BullMQ job
@@ -120,4 +121,6 @@ class ResumeService:
             resume.embedding_path = embedding_path
 
         await db.flush()
+        await db.commit()
+        await db.refresh(resume)
         return resume
