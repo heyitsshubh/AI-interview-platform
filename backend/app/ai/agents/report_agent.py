@@ -366,9 +366,9 @@ async def generate_report_node(state: dict[str, Any]) -> dict[str, Any]:
     interview_id = state.get("interview_id", str(uuid.uuid4()))
 
     llm = ChatGoogleGenerativeAI(
-        model="gemini-1.5-pro",
+        model="gemini-1.5-flash",
         google_api_key=settings.GEMINI_API_KEY,
-        temperature=0.5,
+        temperature=0.2,
     )
 
     recommendation = _determine_recommendation(

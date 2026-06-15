@@ -28,7 +28,7 @@ async def evaluate_answers_node(state: dict[str, Any]) -> dict[str, Any]:
     cheating_report = state.get("cheating_report", {})
 
     llm = ChatGoogleGenerativeAI(
-        model="gemini-1.5-pro",
+        model="gemini-1.5-flash",
         google_api_key=settings.GEMINI_API_KEY,
         temperature=0.3,
     )

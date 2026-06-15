@@ -25,9 +25,9 @@ async def resume_analysis_node(state: dict[str, Any]) -> dict[str, Any]:
     job_title = state.get("job_title", "Software Engineer")
 
     llm = ChatGoogleGenerativeAI(
-        model="gemini-1.5-pro",
+        model="gemini-1.5-flash",
         google_api_key=settings.GEMINI_API_KEY,
-        temperature=0.2,
+        temperature=0.1,
     )
 
     system_prompt = """You are an expert HR analyst and resume parser. 
