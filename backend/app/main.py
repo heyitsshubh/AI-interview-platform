@@ -138,6 +138,7 @@ A production-grade AI Interview SaaS Platform.
         from app.core.database import engine, create_tables
         from sqlalchemy import text
         from app.queue.producer import get_redis_client
+        from app.ai.rag.embeddings import get_embedding_model
         import traceback
         
         results = {}
@@ -158,16 +159,22 @@ A production-grade AI Interview SaaS Platform.
             results["redis"] = {
                 "status": "success", 
                 "host": settings.REDIS_HOST,
-                "has_password": bool(settings.REDIS_PASSWORD)
+                "has_password": bool(settings.REDIS_PASSWORD),
+                "is_ssl": "upstash.io" in settings.REDIS_HOST
             }
         except Exception as e:
-            results["redis"] = {
-                "status": "error", 
-                "host": settings.REDIS_HOST,
-                "has_password": bool(settings.REDIS_PASSWORD),
-                "message": str(e), 
-                "traceback": traceback.format_exc()
-            }
+            results["redis"] = {"status": "error", "message": str(e), "traceback": traceback.format_exc()}
+
+        # Test OpenAI Embeddings
+        try:
+            model = get_embedding_model()
+            await model.aembed_query("test")
+            results["openai"] = {"status": "success", "has_key": bool(settings.OPENAI_API_KEY)}
+        except Exception as e:
+            results["openai"] = {"status": "error", "message": str(e), "has_key": bool(settings.OPENAI_API_KEY)}
+
+        # Internal Worker Key
+        results["worker_key"] = {"configured": bool(settings.INTERNAL_API_KEY)}
             
         return results
 
