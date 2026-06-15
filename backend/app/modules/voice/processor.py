@@ -15,7 +15,7 @@ class VoiceProcessor:
         self._configured = False
         if settings.GEMINI_API_KEY:
             import google.generativeai as genai
-            genai.configure(api_key=settings.GEMINII_API_KEY)
+            genai.configure(api_key=settings.GEMINI_API_KEY)
             self._model = genai.GenerativeModel("gemini-1.5-flash")
             self._configured = True
         else:
