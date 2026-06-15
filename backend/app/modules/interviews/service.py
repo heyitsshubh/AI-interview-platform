@@ -127,7 +127,7 @@ class InterviewService:
         await self.repo.update_status(db, interview_id, "COMPLETED")
         await self.repo.create_report(db, interview_id)
 
-        job_id = enqueue_report_generation(str(interview_id))
+        job_id = await enqueue_report_generation(str(interview_id))
         logger.info(f"Interview {interview_id} completed, report job {job_id} queued")
         return {"status": "COMPLETED", "report_job_id": job_id}
 

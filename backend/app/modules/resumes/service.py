@@ -67,7 +67,7 @@ class ResumeService:
         await db.refresh(resume)
 
         # Enqueue BullMQ job
-        job_id = enqueue_resume_processing(
+        job_id = await enqueue_resume_processing(
             resume_id=str(resume.id),
             file_path=str(file_path),
             user_id=str(user_id),
