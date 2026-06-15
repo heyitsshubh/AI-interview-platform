@@ -1,50 +1,66 @@
 """
-Voice audio processing using OpenAI Whisper API.
+Voice audio processing using Google Gemini API.
 """
 import logging
-import io
-from openai import AsyncOpenAI
+import tempfile
+import os
+import asyncio
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-
 class VoiceProcessor:
     def __init__(self):
-        self._client = None
-        if settings.OPENAI_API_KEY:
-            self._client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        self._configured = False
+        if settings.GEMINI_API_KEY:
+            import google.generativeai as genai
+            genai.configure(api_key=settings.GEMINI_API_KEY)
+            self._model = genai.GenerativeModel("gemini-1.5-flash")
+            self._configured = True
         else:
-            logger.warning("OPENAI_API_KEY not found. Voice transcription disabled.")
+            logger.warning("GEMINI_API_KEY not found. Voice transcription disabled.")
 
     async def transcribe_audio_chunk(self, audio_bytes: bytes, sample_rate: int = 16000) -> str:
         """
-        Transcribe audio bytes using OpenAI Whisper.
+        Transcribe audio bytes using Google Gemini.
         Returns transcribed text string.
         """
-        if not self._client:
+        if not self._configured:
             return "[Voice transcription unavailable]"
 
+        import google.generativeai as genai
+        
+        # Gemini requires a file upload for audio processing
+        temp_file_path = ""
         try:
-            # Create a file-like object for OpenAI
-            audio_file = io.BytesIO(audio_bytes)
-            audio_file.name = "audio.webm"  # OpenAI requires a filename to guess the format
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as temp_file:
+                temp_file.write(audio_bytes)
+                temp_file_path = temp_file.name
 
-            response = await self._client.audio.transcriptions.create(
-                model="whisper-1",
-                file=audio_file,
-                response_format="text"
-            )
+            # Upload to Gemini File API
+            uploaded_file = await asyncio.to_thread(genai.upload_file, path=temp_file_path)
             
-            # The response is directly a string when response_format="text"
-            transcript = str(response).strip()
+            # Generate content (Transcription)
+            prompt = "Accurately transcribe the spoken audio in this file. Reply with ONLY the transcript, nothing else. If it is silent or you cannot hear anything, reply with '[silence]'."
+            
+            # Gemini models are sync by default in this SDK pattern, wrap in to_thread
+            response = await asyncio.to_thread(self._model.generate_content, [prompt, uploaded_file])
+            
+            transcript = response.text.strip()
+            
+            # Cleanup uploaded file from Google servers
+            await asyncio.to_thread(genai.delete_file, uploaded_file.name)
+            
             logger.info(f"Transcribed {len(audio_bytes)} bytes: '{transcript[:50]}...'")
             return transcript
 
         except Exception as exc:
-            logger.error(f"OpenAI Speech-to-Text error: {exc}")
+            logger.error(f"Gemini Speech-to-Text error: {exc}")
             return ""
+        finally:
+            if temp_file_path and os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
 
     async def transcribe_audio_file(self, file_path: str) -> str:
         """Transcribe an audio file."""
@@ -54,8 +70,7 @@ class VoiceProcessor:
 
     async def detect_external_voices(self, audio_bytes: bytes) -> bool:
         """
-        OpenAI Whisper does not natively support speaker diarization.
+        Gemini audio transcription doesn't natively expose diarization tags via simple prompt.
         Returning False to bypass cheating detection for multiple speakers.
-        (Other cheating detection like tab switching still works).
         """
         return False

@@ -165,13 +165,13 @@ A production-grade AI Interview SaaS Platform.
         except Exception as e:
             results["redis"] = {"status": "error", "message": str(e), "traceback": traceback.format_exc()}
 
-        # Test OpenAI Embeddings
+        # Test Gemini Embeddings (Replacement for OpenAI)
         try:
             model = get_embedding_model()
             await model.aembed_query("test")
-            results["openai"] = {"status": "success", "has_key": bool(settings.OPENAI_API_KEY)}
+            results["gemini"] = {"status": "success", "has_key": bool(settings.GEMINI_API_KEY)}
         except Exception as e:
-            results["openai"] = {"status": "error", "message": str(e), "has_key": bool(settings.OPENAI_API_KEY)}
+            results["gemini"] = {"status": "error", "message": str(e), "has_key": bool(settings.GEMINI_API_KEY)}
 
         # Internal Worker Key
         results["worker_key"] = {"configured": bool(settings.INTERNAL_API_KEY)}

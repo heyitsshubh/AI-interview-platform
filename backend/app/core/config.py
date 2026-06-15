@@ -45,7 +45,6 @@ class Settings(BaseSettings):
 
     # AI Providers
     GEMINI_API_KEY: str = ""
-    OPENAI_API_KEY: str = ""  # For embeddings only
 
     # Google Cloud (Speech-to-Text)
     GOOGLE_APPLICATION_CREDENTIALS: str = ""

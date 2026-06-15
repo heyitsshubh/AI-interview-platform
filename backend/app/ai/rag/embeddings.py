@@ -9,16 +9,16 @@ logger = logging.getLogger(__name__)
 
 @lru_cache()
 def get_embedding_model():
-    """Get (and cache) the OpenAI embedding model instance."""
-    from langchain_openai import OpenAIEmbeddings
+    """Get (and cache) the Google Generative AI embedding model instance."""
+    from langchain_google_genai import GoogleGenerativeAIEmbeddings
     from app.core.config import get_settings
 
     settings = get_settings()
-    model = OpenAIEmbeddings(
-        model="text-embedding-3-small",
-        openai_api_key=settings.OPENAI_API_KEY,
+    model = GoogleGenerativeAIEmbeddings(
+        model="models/embedding-001",
+        google_api_key=settings.GEMINI_API_KEY,
     )
-    logger.info("OpenAI embedding model initialized (text-embedding-3-small)")
+    logger.info("Google Generative AI embedding model initialized (models/embedding-001)")
     return model
 
 
