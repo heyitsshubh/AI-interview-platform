@@ -133,6 +133,23 @@ A production-grade AI Interview SaaS Platform.
             "version": settings.APP_VERSION,
         }
 
+    @app.get("/api/debug/db", tags=["Debug"])
+    async def debug_db():
+        from app.core.database import engine, create_tables
+        from sqlalchemy import text
+        try:
+            # Test 1: Can we create tables?
+            await create_tables()
+            
+            # Test 2: Can we select 1?
+            async with engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+            
+            return {"status": "success", "db_url": settings.async_database_url.split("@")[-1]} # only show host to be safe
+        except Exception as e:
+            import traceback
+            return {"status": "error", "message": str(e), "traceback": traceback.format_exc()}
+
     # ── Routers ───────────────────────────────────────────────────────────────
     # Import all models first to populate SQLAlchemy registry
     from app.modules.users.model import User
