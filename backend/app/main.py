@@ -167,9 +167,33 @@ A production-grade AI Interview SaaS Platform.
 
         # Test Gemini Embeddings (Replacement for OpenAI)
         try:
-            model = get_embedding_model()
-            await model.aembed_query("test")
-            results["gemini"] = {"status": "success", "has_key": bool(settings.GEMINI_API_KEY)}
+            from langchain_google_genai import GoogleGenerativeAIEmbeddings
+            models_to_try = [
+                "models/embedding-001",
+                "embedding-001",
+                "models/text-embedding-004",
+                "text-embedding-004"
+            ]
+            
+            success_model = None
+            errors = []
+            
+            for m in models_to_try:
+                try:
+                    test_model = GoogleGenerativeAIEmbeddings(
+                        model=m,
+                        google_api_key=settings.GEMINI_API_KEY,
+                    )
+                    await test_model.aembed_query("test")
+                    success_model = m
+                    break
+                except Exception as e:
+                    errors.append(f"{m}: {str(e)}")
+            
+            if success_model:
+                results["gemini"] = {"status": "success", "model": success_model, "has_key": bool(settings.GEMINI_API_KEY)}
+            else:
+                results["gemini"] = {"status": "error", "message": "All models failed", "errors": errors, "has_key": bool(settings.GEMINI_API_KEY)}
         except Exception as e:
             results["gemini"] = {"status": "error", "message": str(e), "has_key": bool(settings.GEMINI_API_KEY)}
 
