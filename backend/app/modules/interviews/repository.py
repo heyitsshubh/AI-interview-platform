@@ -32,6 +32,7 @@ class InterviewRepository:
         )
         db.add(interview)
         await db.flush()
+        await db.commit()
         await db.refresh(interview)
         logger.info(f"Interview created: {interview.id}")
         return interview

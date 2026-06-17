@@ -26,10 +26,27 @@ class InterviewService:
         total_questions: int = 10,
     ):
         """Create a new interview for the current candidate."""
-        # Get latest resume if not provided
-        if resume_id is None and "CANDIDATE" in current_user.roles:
-            from sqlalchemy import select
-            from app.modules.resumes.model import Resume
+        from sqlalchemy import select
+        from app.modules.resumes.model import Resume
+
+        validated_resume_id = None
+
+        if resume_id is not None:
+            # Validate the resume exists AND belongs to this user
+            result = await db.execute(
+                select(Resume).where(
+                    Resume.id == resume_id,
+                    Resume.user_id == current_user.id
+                )
+            )
+            resume = result.scalar_one_or_none()
+            if resume:
+                validated_resume_id = resume.id
+            else:
+                logger.warning(f"Resume {resume_id} not found or doesn't belong to user — falling back to latest")
+
+        # If no valid resume provided, auto-pick the latest DONE resume
+        if validated_resume_id is None and "CANDIDATE" in current_user.roles:
             result = await db.execute(
                 select(Resume)
                 .where(Resume.user_id == current_user.id)
@@ -37,12 +54,13 @@ class InterviewService:
                 .limit(1)
             )
             latest_resume = result.scalar_one_or_none()
-            resume_id = latest_resume.id if latest_resume else None
+            validated_resume_id = latest_resume.id if latest_resume else None
 
         interview = await self.repo.create_interview(
-            db, current_user.id, resume_id, job_title, job_description, total_questions
+            db, current_user.id, validated_resume_id, job_title, job_description, total_questions
         )
         return interview
+
 
     async def get_interview(self, db: AsyncSession, interview_id: uuid.UUID, current_user):
         """Get interview by ID. Owner or recruiter can access."""
