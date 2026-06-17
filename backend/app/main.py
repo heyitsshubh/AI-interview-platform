@@ -194,8 +194,6 @@ A production-grade AI Interview SaaS Platform.
     async def debug_system():
         from app.core.database import engine, create_tables
         from sqlalchemy import text
-        from app.queue.producer import get_redis_client
-        from app.ai.rag.embeddings import get_embedding_model
         import traceback
         
         results = {}
@@ -209,94 +207,23 @@ A production-grade AI Interview SaaS Platform.
         except Exception as e:
             results["database"] = {"status": "error", "message": str(e), "traceback": traceback.format_exc()}
             
-        # Test Redis
-        try:
-            client = get_redis_client()
-            client.ping()
-            results["redis"] = {
-                "status": "success", 
-                "host": settings.REDIS_HOST,
-                "has_password": bool(settings.REDIS_PASSWORD),
-                "is_ssl": "upstash.io" in settings.REDIS_HOST
-            }
-        except Exception as e:
-            results["redis"] = {"status": "error", "message": str(e), "traceback": traceback.format_exc()}
+        # Redis / BullMQ — removed, not needed anymore
+        results["redis"] = {"status": "not_used", "note": "BullMQ removed, processing via FastAPI BackgroundTasks"}
+        results["queues"] = {"status": "not_used", "note": "No Redis queues, all jobs run inline"}
 
-        # Test Gemini Embeddings (Replacement for OpenAI)
+        # Test Gemini LLM (chat only, embeddings not used)
         try:
-            from langchain_google_genai import GoogleGenerativeAIEmbeddings
-            models_to_try = [
-                "models/embedding-001",
-                "embedding-001",
-                "models/text-embedding-004",
-                "text-embedding-004"
-            ]
-            
-            success_model = None
-            errors = []
-            
-            for m in models_to_try:
-                try:
-                    test_model = GoogleGenerativeAIEmbeddings(
-                        model=m,
-                        google_api_key=settings.GEMINI_API_KEY,
-                    )
-                    await test_model.aembed_query("test")
-                    success_model = m
-                    break
-                except Exception as e:
-                    errors.append(f"{m}: {str(e)}")
-            
-            if success_model:
-                results["gemini"] = {"status": "success", "model": success_model, "has_key": bool(settings.GEMINI_API_KEY)}
-            else:
-                results["gemini"] = {"status": "error", "message": "All models failed", "errors": errors, "has_key": bool(settings.GEMINI_API_KEY)}
+            from langchain_google_genai import ChatGoogleGenerativeAI
+            from langchain_core.messages import HumanMessage
+            llm = ChatGoogleGenerativeAI(
+                model="gemini-1.5-flash",
+                google_api_key=settings.GEMINI_API_KEY,
+            )
+            await llm.ainvoke([HumanMessage(content="Reply with OK")])
+            results["gemini"] = {"status": "success", "model": "gemini-1.5-flash", "has_key": bool(settings.GEMINI_API_KEY)}
         except Exception as e:
             results["gemini"] = {"status": "error", "message": str(e), "has_key": bool(settings.GEMINI_API_KEY)}
 
-        # Internal Worker Key
-        results["worker_key"] = {"configured": bool(settings.INTERNAL_API_KEY)}
-        
-        # Check BullMQ Queues safely
-        try:
-            client = get_redis_client()
-            waiting = 0
-            try:
-                waiting = client.zcard("bull:resume-processing:wait")
-            except Exception:
-                try:
-                    waiting = client.llen("bull:resume-processing:wait")
-                except Exception:
-                    pass
-                    
-            active = 0
-            try:
-                active = client.zcard("bull:resume-processing:active")
-            except Exception:
-                try:
-                    active = client.llen("bull:resume-processing:active")
-                except Exception:
-                    pass
-                    
-            failed = 0
-            try:
-                failed = client.zcard("bull:resume-processing:failed")
-            except Exception:
-                try:
-                    failed = client.llen("bull:resume-processing:failed")
-                except Exception:
-                    pass
-                
-            results["queues"] = {
-                "resume-processing": {
-                    "waiting": waiting,
-                    "active": active,
-                    "failed": failed
-                }
-            }
-        except Exception as e:
-            results["queues"] = {"status": "error", "message": str(e), "traceback": traceback.format_exc()}
-            
         return results
 
     # ── Routers ───────────────────────────────────────────────────────────────

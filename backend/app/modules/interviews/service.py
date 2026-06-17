@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
 
 from app.modules.interviews.repository import InterviewRepository
-from app.queue.producer import enqueue_report_generation
+# BullMQ removed — evaluation is triggered via BackgroundTasks in the WebSocket route
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +115,7 @@ class InterviewService:
         return {"status": "ACTIVE", "questions_generated": len(saved_questions)}
 
     async def complete_interview(self, db: AsyncSession, interview_id: uuid.UUID, current_user) -> dict:
-        """Mark interview as completed and enqueue report generation."""
+        """Mark interview as completed and create report record."""
         interview = await self.get_interview(db, interview_id, current_user)
 
         if interview.status != "ACTIVE":
@@ -127,9 +127,9 @@ class InterviewService:
         await self.repo.update_status(db, interview_id, "COMPLETED")
         await self.repo.create_report(db, interview_id)
 
-        job_id = await enqueue_report_generation(str(interview_id))
-        logger.info(f"Interview {interview_id} completed, report job {job_id} queued")
-        return {"status": "COMPLETED", "report_job_id": job_id}
+        # Evaluation is triggered by the WebSocket route via BackgroundTasks
+        logger.info(f"Interview {interview_id} marked COMPLETED, evaluation will run in background")
+        return {"status": "COMPLETED"}
 
     async def get_interview_questions(self, db: AsyncSession, interview_id: uuid.UUID) -> list:
         return await self.repo.get_questions(db, interview_id)
