@@ -190,6 +190,37 @@ A production-grade AI Interview SaaS Platform.
 
         return results
 
+    @app.post("/api/debug/interview/create-test", tags=["Debug"])
+    async def debug_create_interview():
+        """Debug: tries to create a test interview and returns full error details."""
+        import traceback as tb
+        import uuid as uuid_mod
+        from app.core.database import AsyncSessionLocal
+        from app.modules.interviews.model import Interview
+
+        results = {}
+        async with AsyncSessionLocal() as db:
+            try:
+                interview = Interview(
+                    user_id=uuid_mod.UUID("00fc6dde-9458-4216-a7d0-6cb435ce4e3c"),
+                    resume_id=None,
+                    job_title="Debug Test Interview",
+                    job_description="debug test",
+                    total_questions=3,
+                )
+                db.add(interview)
+                await db.flush()
+                await db.commit()
+                await db.refresh(interview)
+                results["status"] = "success"
+                results["interview_id"] = str(interview.id)
+            except Exception as e:
+                results["status"] = "error"
+                results["error"] = str(e)
+                results["traceback"] = tb.format_exc()
+
+        return results
+
     @app.get("/api/debug/system", tags=["Debug"])
     async def debug_system():
         from app.core.database import engine, create_tables
