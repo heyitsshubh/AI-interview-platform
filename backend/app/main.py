@@ -133,6 +133,63 @@ A production-grade AI Interview SaaS Platform.
             "version": settings.APP_VERSION,
         }
 
+    @app.post("/api/debug/resume/{resume_id}/force-process", tags=["Debug"])
+    async def force_process_resume(resume_id: str):
+        """
+        Directly process a resume without going through the BullMQ worker.
+        Use this to unblock stuck PENDING resumes.
+        """
+        import traceback
+        from sqlalchemy import select
+        from app.core.database import AsyncSessionLocal
+        from app.modules.resumes.model import Resume
+        from app.modules.resumes.parser import extract_text_from_pdf
+        import uuid as uuid_mod
+
+        results = {"resume_id": resume_id, "steps": []}
+
+        try:
+            rid = uuid_mod.UUID(resume_id)
+        except Exception:
+            return {"error": "Invalid resume UUID"}
+
+        async with AsyncSessionLocal() as db:
+            try:
+                # Step 1: Fetch resume
+                result = await db.execute(select(Resume).where(Resume.id == rid))
+                resume = result.scalar_one_or_none()
+                if not resume:
+                    return {"error": f"Resume {resume_id} not found in database"}
+                results["steps"].append({"step": "fetch", "status": "ok", "file_path": resume.file_path, "current_status": resume.status})
+
+                # Step 2: Extract text
+                try:
+                    text = extract_text_from_pdf(resume.file_path)
+                    resume.extracted_text = text
+                    resume.status = "PROCESSING"
+                    await db.flush()
+                    await db.commit()
+                    results["steps"].append({"step": "extract_text", "status": "ok", "chars": len(text)})
+                except Exception as e:
+                    results["steps"].append({"step": "extract_text", "status": "error", "error": str(e), "traceback": traceback.format_exc()})
+                    resume.status = "FAILED"
+                    await db.commit()
+                    return results
+
+                # Step 3: Mark DONE (bypassing embeddings)
+                resume.embedding_path = "bypassed"
+                resume.status = "DONE"
+                await db.flush()
+                await db.commit()
+                results["steps"].append({"step": "mark_done", "status": "ok"})
+                results["final_status"] = "DONE"
+
+            except Exception as e:
+                results["error"] = str(e)
+                results["traceback"] = traceback.format_exc()
+
+        return results
+
     @app.get("/api/debug/system", tags=["Debug"])
     async def debug_system():
         from app.core.database import engine, create_tables
