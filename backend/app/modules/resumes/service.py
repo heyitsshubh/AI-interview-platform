@@ -1,9 +1,9 @@
 """
-Resume service: file upload, storage, and job enqueueing.
+Resume service: file upload, storage, and in-process background processing.
+Processing happens directly via FastAPI BackgroundTasks (no BullMQ worker needed).
 """
 import uuid
 import logging
-import os
 from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,7 +11,7 @@ from fastapi import UploadFile, HTTPException, status
 import aiofiles
 
 from app.core.config import get_settings
-from app.queue.producer import enqueue_resume_processing
+from app.core.database import AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -20,12 +20,57 @@ ALLOWED_MIME_TYPES = {"application/pdf", "application/x-pdf"}
 MAX_FILE_SIZE_MB = 10
 
 
+async def _process_resume_background(resume_id: uuid.UUID, file_path: str):
+    """
+    Background task: extract text from PDF and mark resume as DONE.
+    Runs inside the FastAPI process — no external worker needed.
+    """
+    from app.modules.resumes.model import Resume
+    from app.modules.resumes.parser import extract_text_from_pdf
+
+    async with AsyncSessionLocal() as db:
+        try:
+            result = await db.execute(select(Resume).where(Resume.id == resume_id))
+            resume = result.scalar_one_or_none()
+            if not resume:
+                logger.error(f"Background task: Resume {resume_id} not found")
+                return
+
+            logger.info(f"[bg-processor] Starting resume {resume_id}")
+            resume.status = "PROCESSING"
+            await db.flush()
+            await db.commit()
+
+            # Extract text from PDF
+            text = extract_text_from_pdf(file_path)
+            logger.info(f"[bg-processor] Extracted {len(text)} chars from {file_path}")
+
+            resume.extracted_text = text
+            resume.embedding_path = "bypassed"
+            resume.status = "DONE"
+            await db.flush()
+            await db.commit()
+            logger.info(f"[bg-processor] ✅ Resume {resume_id} → DONE")
+
+        except Exception as exc:
+            logger.error(f"[bg-processor] ❌ Resume {resume_id} failed: {exc}", exc_info=True)
+            try:
+                result2 = await db.execute(select(Resume).where(Resume.id == resume_id))
+                resume2 = result2.scalar_one_or_none()
+                if resume2:
+                    resume2.status = "FAILED"
+                    await db.commit()
+            except Exception:
+                pass
+
+
 class ResumeService:
     async def upload_resume(
         self,
         db: AsyncSession,
         user_id: uuid.UUID,
         file: UploadFile,
+        background_tasks=None,
     ):
         from app.modules.resumes.model import Resume
 
@@ -56,7 +101,7 @@ class ResumeService:
         async with aiofiles.open(str(file_path), "wb") as f:
             await f.write(content)
 
-        # Create DB record
+        # Create DB record with PENDING status
         resume = Resume(
             user_id=user_id,
             file_path=str(file_path),
@@ -67,13 +112,13 @@ class ResumeService:
         await db.commit()
         await db.refresh(resume)
 
-        # Enqueue BullMQ job
-        job_id = await enqueue_resume_processing(
-            resume_id=str(resume.id),
-            file_path=str(file_path),
-            user_id=str(user_id),
-        )
-        logger.info(f"Resume {resume.id} uploaded, job {job_id} queued")
+        logger.info(f"Resume {resume.id} uploaded to {file_path}")
+
+        # Schedule in-process background processing
+        if background_tasks is not None:
+            background_tasks.add_task(_process_resume_background, resume.id, str(file_path))
+            logger.info(f"Resume {resume.id} queued for background processing")
+
         return resume
 
     async def get_resume(self, db: AsyncSession, resume_id: uuid.UUID, current_user):

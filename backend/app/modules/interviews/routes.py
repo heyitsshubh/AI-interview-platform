@@ -5,7 +5,7 @@ import uuid
 import logging
 import json
 from datetime import datetime
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Query, HTTPException, status
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Query, HTTPException, status, BackgroundTasks
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -112,6 +112,7 @@ async def interview_websocket_session(
     websocket: WebSocket,
     interview_id: uuid.UUID,
     token: str = Query(..., description="JWT access token"),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -215,6 +216,21 @@ async def interview_websocket_session(
                                 "answered": answered_count,
                             })
                         else:
+                            # Mark interview as COMPLETED
+                            from app.modules.interviews.model import Interview
+                            from sqlalchemy import select as sa_select
+                            iw_result = await db.execute(sa_select(Interview).where(Interview.id == interview_id))
+                            iw = iw_result.scalar_one_or_none()
+                            if iw:
+                                iw.status = "COMPLETED"
+                                await db.flush()
+                                await db.commit()
+
+                            # Trigger AI evaluation in background (no BullMQ needed)
+                            from app.background.evaluator import run_evaluation_background
+                            background_tasks.add_task(run_evaluation_background, interview_id)
+                            logger.info(f"Evaluation background task queued for interview {interview_id}")
+
                             await websocket.send_json({
                                 "type": "completed",
                                 "message": "Interview complete! Your report is being generated.",

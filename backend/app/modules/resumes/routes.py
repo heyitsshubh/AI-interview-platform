@@ -2,7 +2,7 @@
 Resume upload and retrieval API routes.
 """
 import uuid
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status, BackgroundTasks
 from pydantic import BaseModel
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,12 +29,14 @@ class ResumeResponse(BaseModel):
 
 @router.post("/upload", response_model=ResumeResponse, status_code=201)
 async def upload_resume(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     current_user=Depends(require_role("CANDIDATE")),
     db: AsyncSession = Depends(get_db),
 ):
-    """Upload a PDF resume. Only CANDIDATE role allowed."""
-    resume = await _service.upload_resume(db, current_user.id, file)
+    """Upload a PDF resume. Only CANDIDATE role allowed.
+    Processing starts immediately in the background — no external worker needed."""
+    resume = await _service.upload_resume(db, current_user.id, file, background_tasks)
     return ResumeResponse.model_validate(resume)
 
 
