@@ -176,16 +176,35 @@ A production-grade AI Interview SaaS Platform.
         # Internal Worker Key
         results["worker_key"] = {"configured": bool(settings.INTERNAL_API_KEY)}
         
-        # Check BullMQ Queues
+        # Check BullMQ Queues safely
         try:
             client = get_redis_client()
-            waiting = client.zcard("bull:resume-processing:wait")
-            active = client.zcard("bull:resume-processing:active")
-            failed = client.zcard("bull:resume-processing:failed")
-            
-            # BullMQ v5 might use Lists or Zsets depending on configuration, check both
-            if not waiting:
-                waiting = client.llen("bull:resume-processing:wait")
+            waiting = 0
+            try:
+                waiting = client.zcard("bull:resume-processing:wait")
+            except Exception:
+                try:
+                    waiting = client.llen("bull:resume-processing:wait")
+                except Exception:
+                    pass
+                    
+            active = 0
+            try:
+                active = client.zcard("bull:resume-processing:active")
+            except Exception:
+                try:
+                    active = client.llen("bull:resume-processing:active")
+                except Exception:
+                    pass
+                    
+            failed = 0
+            try:
+                failed = client.zcard("bull:resume-processing:failed")
+            except Exception:
+                try:
+                    failed = client.llen("bull:resume-processing:failed")
+                except Exception:
+                    pass
                 
             # TEST ADDING A DUMMY JOB TO SEE IF IT FAILS
             from app.queue.producer import add_job

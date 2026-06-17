@@ -15,10 +15,10 @@ def get_embedding_model():
 
     settings = get_settings()
     model = GoogleGenerativeAIEmbeddings(
-        model="models/embedding-001",
+        model="models/text-embedding-004",
         google_api_key=settings.GEMINI_API_KEY,
     )
-    logger.info("Google Generative AI embedding model initialized (models/embedding-001)")
+    logger.info("Google Generative AI embedding model initialized (models/text-embedding-004)")
     return model
 
 
