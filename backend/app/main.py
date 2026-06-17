@@ -186,16 +186,21 @@ A production-grade AI Interview SaaS Platform.
             # BullMQ v5 might use Lists or Zsets depending on configuration, check both
             if not waiting:
                 waiting = client.llen("bull:resume-processing:wait")
+                
+            # TEST ADDING A DUMMY JOB TO SEE IF IT FAILS
+            from app.queue.producer import add_job
+            test_job_id = await add_job("resume-processing", "TEST_JOB", {"test": True})
             
             results["queues"] = {
                 "resume-processing": {
                     "waiting": waiting,
                     "active": active,
-                    "failed": failed
+                    "failed": failed,
+                    "test_job_enqueue": test_job_id if test_job_id else "FAILED"
                 }
             }
         except Exception as e:
-            results["queues"] = {"status": "error", "message": str(e)}
+            results["queues"] = {"status": "error", "message": str(e), "traceback": traceback.format_exc()}
             
         return results
 
