@@ -230,16 +230,11 @@ A production-grade AI Interview SaaS Platform.
                 except Exception:
                     pass
                 
-            # TEST ADDING A DUMMY JOB TO SEE IF IT FAILS
-            from app.queue.producer import add_job
-            test_job_id = await add_job("resume-processing", "TEST_JOB", {"test": True})
-            
             results["queues"] = {
                 "resume-processing": {
                     "waiting": waiting,
                     "active": active,
-                    "failed": failed,
-                    "test_job_enqueue": test_job_id if test_job_id else "FAILED"
+                    "failed": failed
                 }
             }
         except Exception as e:

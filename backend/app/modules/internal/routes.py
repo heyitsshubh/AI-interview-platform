@@ -100,16 +100,12 @@ async def generate_resume_embeddings(
         raise HTTPException(status_code=400, detail="Resume has no extracted text. Run extract-text first.")
 
     try:
-        store = FAISSVectorStore()
-        index_path = await store.create_resume_index(
-            resume_text=resume.extracted_text,
-            user_id=str(resume.user_id),
-        )
-        resume.embedding_path = index_path
+        # Bypassing embeddings since Gemini 1.5 Flash's 1M context window makes RAG unnecessary for single resumes
+        resume.embedding_path = "bypassed"
         resume.status = "DONE"
         await db.flush()
         await db.commit()
-        return {"resume_id": str(resume_id), "embedding_path": index_path, "status": "DONE"}
+        return {"resume_id": str(resume_id), "embedding_path": "bypassed", "status": "DONE"}
     except Exception as exc:
         logger.error(f"Embedding generation failed for resume {resume_id}: {exc}")
         resume.status = "FAILED"
