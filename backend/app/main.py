@@ -190,7 +190,7 @@ A production-grade AI Interview SaaS Platform.
 
         return results
 
-    @app.post("/api/debug/interview/create-test", tags=["Debug"])
+    @app.get("/api/debug/interview/create-test", tags=["Debug"])
     async def debug_create_interview():
         """Debug: tries to create a test interview and returns full error details."""
         import traceback as tb
