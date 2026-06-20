@@ -101,16 +101,23 @@ class InterviewService:
 
         # Generate questions using Gemini directly (single API call, no LangGraph overhead)
         try:
-            from langchain_google_genai import ChatGoogleGenerativeAI
-            from langchain_core.messages import HumanMessage, SystemMessage
+            from langchain_google_genai import ChatGoogleGenerativeAI, HarmCategory, HarmBlockThreshold
+            from langchain_core.messages import HumanMessage
             from app.core.config import get_settings
             import json as json_mod
+            import re
 
             cfg = get_settings()
             llm = ChatGoogleGenerativeAI(
                 model="gemini-1.5-flash",
                 google_api_key=cfg.GEMINI_API_KEY,
                 temperature=0.7,
+                safety_settings={
+                    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+                    HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+                    HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+                    HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+                }
             )
 
             total_q = interview.total_questions
@@ -118,9 +125,11 @@ class InterviewService:
             behavioral_count = max(1, int(total_q * 0.35))
             situational_count = max(1, total_q - technical_count - behavioral_count)
 
-            resume_context = f"\n\nResume text:\n{resume_text[:3000]}" if resume_text else ""
+            resume_context = f"\n\nResume text:\n{resume_text[:4000]}" if resume_text else ""
 
             prompt = f"""Generate exactly {total_q} interview questions for a {interview.job_title} position.{resume_context}
+
+Make sure the questions are deeply tailored to the candidate's specific experience and skills mentioned in the resume.
 
 Question distribution:
 - TECHNICAL: {technical_count} questions
@@ -135,16 +144,21 @@ Return ONLY a valid JSON array (no markdown, no explanation):
 
             response = await llm.ainvoke([HumanMessage(content=prompt)])
             content = response.content.strip()
-            # Strip markdown code fences if present
-            if content.startswith("```"):
-                content = content.split("```")[1]
-                if content.startswith("json"):
-                    content = content[4:]
-            content = content.strip()
+            
+            # Use regex to robustly extract the JSON array
+            match = re.search(r'\[.*\]', content, re.DOTALL)
+            if match:
+                content = match.group(0)
+            else:
+                logger.warning(f"Regex failed to find JSON array, raw content: {content[:200]}")
+                
             questions = json_mod.loads(content)
+            
             # Ensure order_index is set correctly
             for i, q in enumerate(questions):
                 q["order_index"] = i + 1
+                if "type" not in q:
+                    q["type"] = "TECHNICAL"
             logger.info(f"Generated {len(questions)} questions for interview {interview_id}")
         except Exception as exc:
             logger.error(f"Question generation failed for interview {interview_id}: {exc}")
