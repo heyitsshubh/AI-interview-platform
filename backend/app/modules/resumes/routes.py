@@ -59,3 +59,14 @@ async def get_resume(
     """Get resume by ID. Owner or RECRUITER can access."""
     resume = await _service.get_resume(db, resume_id, current_user)
     return ResumeResponse.model_validate(resume)
+
+
+@router.delete("/{resume_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_resume(
+    resume_id: uuid.UUID,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete resume by ID."""
+    await _service.delete_resume(db, resume_id, current_user)
+    return None

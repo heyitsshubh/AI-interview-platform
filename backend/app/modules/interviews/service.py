@@ -73,6 +73,12 @@ class InterviewService:
 
         return interview
 
+    async def delete_interview(self, db: AsyncSession, interview_id: uuid.UUID, current_user):
+        """Delete an interview (user must own it or be RECRUITER)."""
+        interview = await self.get_interview(db, interview_id, current_user)
+        # get_interview already checks ownership
+        return await self.repo.delete_interview(db, interview_id)
+
     async def get_history(self, db: AsyncSession, current_user) -> list:
         """Get interview history. Candidates see own, recruiters see all."""
         if "RECRUITER" in current_user.roles:

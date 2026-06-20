@@ -26,6 +26,9 @@ class InterviewController:
     async def get(self, db, interview_id, current_user):
         return await self.service.get_interview(db, interview_id, current_user)
 
+    async def delete(self, db, interview_id, current_user):
+        return await self.service.delete_interview(db, interview_id, current_user)
+
     async def history(self, db, current_user):
         return await self.service.get_history(db, current_user)
 

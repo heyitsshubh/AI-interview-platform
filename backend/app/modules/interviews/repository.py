@@ -37,6 +37,15 @@ class InterviewRepository:
         logger.info(f"Interview created: {interview.id}")
         return interview
 
+    async def delete_interview(self, db: AsyncSession, interview_id: uuid.UUID):
+        from app.modules.interviews.model import Interview
+        from sqlalchemy import delete
+        
+        await db.execute(delete(Interview).where(Interview.id == interview_id))
+        await db.commit()
+        logger.info(f"Interview deleted: {interview_id}")
+        return True
+
     async def get_interview(self, db: AsyncSession, interview_id: uuid.UUID):
         from app.modules.interviews.model import Interview, Question
 

@@ -76,6 +76,17 @@ async def get_interview(
     return InterviewResponse.model_validate(interview)
 
 
+@router.delete("/{interview_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_interview(
+    interview_id: uuid.UUID,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete an interview."""
+    await _controller.delete(db, interview_id, current_user)
+    return None
+
+
 @router.post("/{interview_id}/start")
 async def start_interview(
     interview_id: uuid.UUID,

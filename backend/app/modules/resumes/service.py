@@ -144,6 +144,24 @@ class ResumeService:
         )
         return result.scalars().all()
 
+    async def delete_resume(self, db: AsyncSession, resume_id: uuid.UUID, current_user):
+        from app.modules.resumes.model import Resume
+        from sqlalchemy import delete
+        
+        # Verify access
+        resume = await self.get_resume(db, resume_id, current_user)
+        
+        # Remove file from disk
+        try:
+            if resume.file_path and Path(resume.file_path).exists():
+                Path(resume.file_path).unlink()
+        except Exception as e:
+            logger.warning(f"Failed to delete resume file from disk: {e}")
+            
+        await db.execute(delete(Resume).where(Resume.id == resume_id))
+        await db.commit()
+        return True
+
     async def update_resume_status(
         self,
         db: AsyncSession,
