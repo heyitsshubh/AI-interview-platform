@@ -129,6 +129,7 @@ class InterviewService:
             saved_questions.append(saved_q)
 
         await self.repo.update_status(db, interview_id, "ACTIVE")
+        await db.commit()
         logger.info(f"Interview {interview_id} started with {len(saved_questions)} questions")
         return {"status": "ACTIVE", "questions_generated": len(saved_questions)}
 

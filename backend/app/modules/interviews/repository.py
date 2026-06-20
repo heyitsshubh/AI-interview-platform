@@ -90,6 +90,7 @@ class InterviewRepository:
         )
         db.add(question)
         await db.flush()
+        await db.commit()
         await db.refresh(question)
         return question
 
