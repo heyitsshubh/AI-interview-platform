@@ -13,9 +13,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAppDispatch, useAppSelector } from '../../../src/store';
-import { fetchResumesThunk } from '../../../src/store/slices/resumeSlice';
+import { fetchResumesThunk, deleteResumeThunk } from '../../../src/store/slices/resumeSlice';
 import { Resume } from '../../../src/services/resumeService';
 import { Colors } from '../../../src/theme/colors';
+import { Alert } from 'react-native';
 
 function getStatusConfig(status: Resume['status']): { color: string; bg: string; label: string; icon: keyof typeof Ionicons.glyphMap } {
   switch (status) {
@@ -38,7 +39,7 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function ResumeCard({ resume, index }: { resume: Resume; index: number }) {
+function ResumeCard({ resume, index, onDelete }: { resume: Resume; index: number; onDelete: (id: string) => void }) {
   const config = getStatusConfig(resume.status);
   const anim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -103,10 +104,17 @@ function ResumeCard({ resume, index }: { resume: Resume; index: number }) {
           )}
         </View>
       </View>
-      <Animated.View style={[styles.statusBadge, { backgroundColor: config.bg, opacity: resume.status === 'PROCESSING' ? pulseAnim : 1 }]}>
-        <Ionicons name={config.icon} size={14} color={config.color} />
-        <Text style={[styles.statusText, { color: config.color }]}>{config.label}</Text>
-      </Animated.View>
+      
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <Animated.View style={[styles.statusBadge, { backgroundColor: config.bg, opacity: resume.status === 'PROCESSING' ? pulseAnim : 1 }]}>
+          <Ionicons name={config.icon} size={14} color={config.color} />
+          <Text style={[styles.statusText, { color: config.color }]}>{config.label}</Text>
+        </Animated.View>
+        
+        <TouchableOpacity onPress={() => onDelete(resume.id)} style={{ padding: 4 }}>
+          <Ionicons name="trash-outline" size={20} color={Colors.danger} />
+        </TouchableOpacity>
+      </View>
     </Animated.View>
   );
 }
@@ -121,6 +129,21 @@ export default function ResumeListScreen() {
 
   const onRefresh = useCallback(() => {
     dispatch(fetchResumesThunk());
+  }, [dispatch]);
+
+  const handleDelete = useCallback((id: string) => {
+    Alert.alert(
+      "Delete Resume",
+      "Are you sure you want to delete this resume? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Delete", 
+          style: "destructive",
+          onPress: () => dispatch(deleteResumeThunk(id))
+        }
+      ]
+    );
   }, [dispatch]);
 
   return (
@@ -148,7 +171,7 @@ export default function ResumeListScreen() {
         refreshControl={
           <RefreshControl refreshing={loading} onRefresh={onRefresh} tintColor={Colors.accent} />
         }
-        renderItem={({ item, index }) => <ResumeCard resume={item} index={index} />}
+        renderItem={({ item, index }) => <ResumeCard resume={item} index={index} onDelete={handleDelete} />}
         ListEmptyComponent={
           !loading ? (
             <View style={styles.emptyState}>

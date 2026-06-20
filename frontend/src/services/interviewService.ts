@@ -64,4 +64,8 @@ export const InterviewService = {
     const res = await api.get('/api/users');
     return res.data;
   },
+
+  async deleteInterview(id: string): Promise<void> {
+    await api.delete(`/api/interviews/${id}`);
+  },
 };

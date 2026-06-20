@@ -151,33 +151,52 @@ export default function CandidateDashboard() {
               </View>
             ) : (
               recentThree.map((interview) => (
-                <TouchableOpacity
-                  key={interview.id}
-                  style={styles.interviewCard}
-                  activeOpacity={0.8}
-                  onPress={() => router.push(`/(candidate)/interview/${interview.id}`)}
-                >
-                  <View style={styles.interviewCardLeft}>
-                    <Ionicons
-                      name={getStatusIcon(interview.status)}
-                      size={22}
-                      color={getStatusColor(interview.status)}
-                    />
-                    <View style={styles.interviewCardInfo}>
-                      <Text style={styles.interviewCardTitle} numberOfLines={1}>{interview.job_title}</Text>
-                      <Text style={styles.interviewCardDate}>
-                        {new Date(interview.created_at).toLocaleDateString()}
-                        {' · '}
-                        {interview.total_questions}Q
+                <View key={interview.id} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                  <TouchableOpacity
+                    style={[styles.interviewCard, { flex: 1, marginBottom: 0 }]}
+                    activeOpacity={0.8}
+                    onPress={() => router.push(`/(candidate)/interview/${interview.id}`)}
+                  >
+                    <View style={styles.interviewCardLeft}>
+                      <Ionicons
+                        name={getStatusIcon(interview.status)}
+                        size={22}
+                        color={getStatusColor(interview.status)}
+                      />
+                      <View style={styles.interviewCardInfo}>
+                        <Text style={styles.interviewCardTitle} numberOfLines={1}>{interview.job_title}</Text>
+                        <Text style={styles.interviewCardDate}>
+                          {new Date(interview.created_at).toLocaleDateString()}
+                          {' · '}
+                          {interview.total_questions}Q
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor(interview.status)}20` }]}>
+                      <Text style={[styles.statusBadgeText, { color: getStatusColor(interview.status) }]}>
+                        {interview.status}
                       </Text>
                     </View>
-                  </View>
-                  <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor(interview.status)}20` }]}>
-                    <Text style={[styles.statusBadgeText, { color: getStatusColor(interview.status) }]}>
-                      {interview.status}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ padding: 12, marginLeft: 8, backgroundColor: 'rgba(231, 76, 60, 0.1)', borderRadius: 12 }}
+                    onPress={() => {
+                      import('react-native').then(({ Alert }) => {
+                        Alert.alert("Delete Interview", "Are you sure you want to delete this interview? This action cannot be undone.", [
+                          { text: "Cancel", style: "cancel" },
+                          { text: "Delete", style: "destructive", onPress: () => {
+                              import('../../src/store/slices/interviewSlice').then(({ deleteInterviewThunk }) => {
+                                dispatch(deleteInterviewThunk(interview.id));
+                              });
+                            }
+                          }
+                        ]);
+                      });
+                    }}
+                  >
+                    <Ionicons name="trash-outline" size={20} color={Colors.danger} />
+                  </TouchableOpacity>
+                </View>
               ))
             )}
           </View>

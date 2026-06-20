@@ -80,6 +80,18 @@ export const completeInterviewThunk = createAsyncThunk(
   }
 );
 
+export const deleteInterviewThunk = createAsyncThunk(
+  'interview/delete',
+  async (id: string, { rejectWithValue }) => {
+    try {
+      await InterviewService.deleteInterview(id);
+      return id;
+    } catch (e: any) {
+      return rejectWithValue(e.response?.data?.detail || 'Failed to delete interview');
+    }
+  }
+);
+
 // ─── Slice ────────────────────────────────────────────────────────────────────
 
 const interviewSlice = createSlice({
@@ -91,6 +103,9 @@ const interviewSlice = createSlice({
       state.currentQuestionIndex = 0;
       state.sessionCompleted = false;
       state.transcript = '';
+    },
+    setQuestions: (state, action: PayloadAction<Question[]>) => {
+      state.questions = action.payload;
     },
     setWsStatus: (
       state,
@@ -201,11 +216,20 @@ const interviewSlice = createSlice({
       state.loading = false;
       state.error = action.payload as string;
     });
+
+    // ── Delete ──────────────────────────────────────────────────────────────
+    builder.addCase(deleteInterviewThunk.fulfilled, (state, action) => {
+      state.interviews = state.interviews.filter((i) => i.id !== action.payload);
+      if (state.currentInterview?.id === action.payload) {
+        state.currentInterview = null;
+      }
+    });
   },
 });
 
 export const {
   setCurrentInterview,
+  setQuestions,
   setWsStatus,
   setRecording,
   setTranscript,

@@ -42,6 +42,18 @@ export const uploadResumeThunk = createAsyncThunk(
   }
 );
 
+export const deleteResumeThunk = createAsyncThunk(
+  'resume/delete',
+  async (id: string, { rejectWithValue }) => {
+    try {
+      await ResumeService.deleteResume(id);
+      return id;
+    } catch (e: any) {
+      return rejectWithValue(e.response?.data?.detail || 'Failed to delete resume');
+    }
+  }
+);
+
 // ─── Slice ────────────────────────────────────────────────────────────────────
 
 const resumeSlice = createSlice({
@@ -81,6 +93,14 @@ const resumeSlice = createSlice({
     });
     builder.addCase(uploadResumeThunk.rejected, (state, action) => {
       state.uploadStatus = 'error';
+      state.error = action.payload as string;
+    });
+
+    // ── Delete ──────────────────────────────────────────────────────────────
+    builder.addCase(deleteResumeThunk.fulfilled, (state, action) => {
+      state.resumes = state.resumes.filter((r) => r.id !== action.payload);
+    });
+    builder.addCase(deleteResumeThunk.rejected, (state, action) => {
       state.error = action.payload as string;
     });
   },

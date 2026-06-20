@@ -11,9 +11,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAppDispatch, useAppSelector } from '../../../src/store';
-import { fetchHistoryThunk } from '../../../src/store/slices/interviewSlice';
+import { fetchHistoryThunk, deleteInterviewThunk } from '../../../src/store/slices/interviewSlice';
 import { Interview } from '../../../src/services/interviewService';
 import { Colors } from '../../../src/theme/colors';
+import { Alert } from 'react-native';
 
 function getStatusConfig(status: Interview['status']): { color: string; bg: string; label: string } {
   switch (status) {
@@ -25,40 +26,49 @@ function getStatusConfig(status: Interview['status']): { color: string; bg: stri
   }
 }
 
-function InterviewListCard({ interview }: { interview: Interview }) {
+function InterviewListCard({ interview, onDelete }: { interview: Interview; onDelete: (id: string) => void }) {
   const config = getStatusConfig(interview.status);
 
   return (
-    <TouchableOpacity
-      style={styles.card}
-      activeOpacity={0.8}
-      onPress={() => router.push(`/(candidate)/interview/${interview.id}`)}
-    >
-      <View style={styles.cardLeft}>
-        <View style={[styles.statusDot, { backgroundColor: config.color }]} />
-        <View style={styles.cardInfo}>
-          <Text style={styles.cardTitle} numberOfLines={1}>{interview.job_title}</Text>
-          <View style={styles.cardMeta}>
-            <Ionicons name="calendar-outline" size={12} color={Colors.textSecondary} />
-            <Text style={styles.cardDate}>
-              {new Date(interview.created_at).toLocaleDateString('en-US', {
-                month: 'short', day: 'numeric', year: 'numeric',
-              })}
-            </Text>
-            <View style={styles.metaDot} />
-            <Ionicons name="help-circle-outline" size={12} color={Colors.textSecondary} />
-            <Text style={styles.cardDate}>{interview.total_questions}Q</Text>
+    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+      <TouchableOpacity
+        style={[styles.card, { flex: 1, paddingVertical: 12 }]}
+        activeOpacity={0.8}
+        onPress={() => router.push(`/(candidate)/interview/${interview.id}`)}
+      >
+        <View style={styles.cardLeft}>
+          <View style={[styles.statusDot, { backgroundColor: config.color }]} />
+          <View style={styles.cardInfo}>
+            <Text style={styles.cardTitle} numberOfLines={1}>{interview.job_title}</Text>
+            <View style={styles.cardMeta}>
+              <Ionicons name="calendar-outline" size={12} color={Colors.textSecondary} />
+              <Text style={styles.cardDate}>
+                {new Date(interview.created_at).toLocaleDateString('en-US', {
+                  month: 'short', day: 'numeric', year: 'numeric',
+                })}
+              </Text>
+              <View style={styles.metaDot} />
+              <Ionicons name="help-circle-outline" size={12} color={Colors.textSecondary} />
+              <Text style={styles.cardDate}>{interview.total_questions}Q</Text>
+            </View>
           </View>
         </View>
-      </View>
 
-      <View style={styles.cardRight}>
-        <View style={[styles.statusBadge, { backgroundColor: config.bg }]}>
-          <Text style={[styles.statusText, { color: config.color }]}>{config.label}</Text>
+        <View style={styles.cardRight}>
+          <View style={[styles.statusBadge, { backgroundColor: config.bg }]}>
+            <Text style={[styles.statusText, { color: config.color }]}>{config.label}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} style={{ marginTop: 8 }} />
         </View>
-        <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} style={{ marginTop: 8 }} />
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+      
+      <TouchableOpacity
+        style={{ padding: 12, marginLeft: 8, backgroundColor: 'rgba(231, 76, 60, 0.1)', borderRadius: 12 }}
+        onPress={() => onDelete(interview.id)}
+      >
+        <Ionicons name="trash-outline" size={20} color={Colors.danger} />
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -72,6 +82,21 @@ export default function InterviewHistoryScreen() {
 
   const onRefresh = useCallback(() => {
     dispatch(fetchHistoryThunk());
+  }, [dispatch]);
+
+  const handleDelete = useCallback((id: string) => {
+    Alert.alert(
+      "Delete Interview",
+      "Are you sure you want to delete this interview? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Delete", 
+          style: "destructive",
+          onPress: () => dispatch(deleteInterviewThunk(id))
+        }
+      ]
+    );
   }, [dispatch]);
 
   const sorted = [...interviews].sort(
@@ -125,7 +150,7 @@ export default function InterviewHistoryScreen() {
         refreshControl={
           <RefreshControl refreshing={loading} onRefresh={onRefresh} tintColor={Colors.accent} />
         }
-        renderItem={({ item }) => <InterviewListCard interview={item} />}
+        renderItem={({ item }) => <InterviewListCard interview={item} onDelete={handleDelete} />}
         ListEmptyComponent={
           !loading ? (
             <View style={styles.emptyState}>
