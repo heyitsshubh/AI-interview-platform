@@ -99,22 +99,70 @@ class InterviewService:
             if resume and resume.extracted_text:
                 resume_text = resume.extracted_text
 
-        # Generate questions using AI
+        # Generate questions using Gemini directly (single API call, no LangGraph overhead)
         try:
-            from app.ai.agents.graph import run_question_generation
-            questions = await run_question_generation(
-                resume_text=resume_text,
-                job_title=interview.job_title,
-                total_questions=interview.total_questions,
+            from langchain_google_genai import ChatGoogleGenerativeAI
+            from langchain_core.messages import HumanMessage, SystemMessage
+            from app.core.config import get_settings
+            import json as json_mod
+
+            cfg = get_settings()
+            llm = ChatGoogleGenerativeAI(
+                model="gemini-1.5-flash",
+                google_api_key=cfg.GEMINI_API_KEY,
+                temperature=0.7,
             )
+
+            total_q = interview.total_questions
+            technical_count = max(1, int(total_q * 0.4))
+            behavioral_count = max(1, int(total_q * 0.35))
+            situational_count = max(1, total_q - technical_count - behavioral_count)
+
+            resume_context = f"\n\nResume text:\n{resume_text[:3000]}" if resume_text else ""
+
+            prompt = f"""Generate exactly {total_q} interview questions for a {interview.job_title} position.{resume_context}
+
+Question distribution:
+- TECHNICAL: {technical_count} questions
+- BEHAVIORAL: {behavioral_count} questions  
+- SITUATIONAL: {situational_count} questions
+
+Return ONLY a valid JSON array (no markdown, no explanation):
+[
+  {{"text": "Question here?", "type": "TECHNICAL", "order_index": 1}},
+  ...
+]"""
+
+            response = await llm.ainvoke([HumanMessage(content=prompt)])
+            content = response.content.strip()
+            # Strip markdown code fences if present
+            if content.startswith("```"):
+                content = content.split("```")[1]
+                if content.startswith("json"):
+                    content = content[4:]
+            content = content.strip()
+            questions = json_mod.loads(content)
+            # Ensure order_index is set correctly
+            for i, q in enumerate(questions):
+                q["order_index"] = i + 1
+            logger.info(f"Generated {len(questions)} questions for interview {interview_id}")
         except Exception as exc:
-            logger.error(f"Question generation failed: {exc}")
-            # Fallback questions
+            logger.error(f"Question generation failed for interview {interview_id}: {exc}")
+            # Robust fallback — always works even if Gemini is down
+            jt = interview.job_title
             questions = [
-                {"text": f"Tell me about your experience with {interview.job_title}.", "type": "BEHAVIORAL", "order_index": 1},
-                {"text": "Describe a challenging project you worked on.", "type": "BEHAVIORAL", "order_index": 2},
-                {"text": "What are your core technical skills?", "type": "TECHNICAL", "order_index": 3},
+                {"text": f"Tell me about your background and experience as a {jt}.", "type": "BEHAVIORAL", "order_index": 1},
+                {"text": f"What are the core technical skills required for a {jt} role?", "type": "TECHNICAL", "order_index": 2},
+                {"text": "Describe a challenging project you worked on and how you solved it.", "type": "BEHAVIORAL", "order_index": 3},
+                {"text": "How do you approach debugging a complex issue in production?", "type": "SITUATIONAL", "order_index": 4},
+                {"text": "What development tools and workflows do you use daily?", "type": "TECHNICAL", "order_index": 5},
+                {"text": "How do you handle disagreements with teammates about technical decisions?", "type": "BEHAVIORAL", "order_index": 6},
+                {"text": "Walk me through how you would design a scalable system from scratch.", "type": "TECHNICAL", "order_index": 7},
+                {"text": "Describe a time you had to learn a new technology quickly.", "type": "BEHAVIORAL", "order_index": 8},
+                {"text": "How do you prioritise tasks when working under tight deadlines?", "type": "SITUATIONAL", "order_index": 9},
+                {"text": "What motivates you in your work and where do you see yourself in 3 years?", "type": "BEHAVIORAL", "order_index": 10},
             ]
+            questions = questions[:interview.total_questions]
 
         # Save questions to DB
         saved_questions = []
@@ -123,7 +171,7 @@ class InterviewService:
                 db,
                 interview_id=interview_id,
                 text=q["text"],
-                order_index=q.get("order_index", 0),
+                order_index=q.get("order_index", 1),
                 question_type=q.get("type", "TECHNICAL"),
             )
             saved_questions.append(saved_q)
