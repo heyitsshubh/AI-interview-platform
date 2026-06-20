@@ -221,6 +221,144 @@ A production-grade AI Interview SaaS Platform.
 
         return results
 
+    @app.get("/api/debug/interview/{interview_id}/force-start", tags=["Debug"])
+    async def debug_force_start_interview(interview_id: str):
+        """
+        Debug: force-start an interview by generating questions directly.
+        Shows full error details if AI generation fails.
+        """
+        import traceback as tb
+        import uuid as uuid_mod
+        from sqlalchemy import select
+        from app.core.database import AsyncSessionLocal
+        from app.modules.interviews.model import Interview, Question
+
+        results = {"interview_id": interview_id, "steps": []}
+
+        try:
+            iid = uuid_mod.UUID(interview_id)
+        except Exception:
+            return {"error": "Invalid interview UUID"}
+
+        async with AsyncSessionLocal() as db:
+            try:
+                # Step 1: Fetch interview
+                res = await db.execute(select(Interview).where(Interview.id == iid))
+                interview = res.scalar_one_or_none()
+                if not interview:
+                    return {"error": f"Interview {interview_id} not found"}
+
+                results["steps"].append({
+                    "step": "fetch",
+                    "status": "ok",
+                    "current_status": interview.status,
+                    "job_title": interview.job_title,
+                    "resume_id": str(interview.resume_id) if interview.resume_id else None,
+                })
+
+                # Step 2: Get resume text
+                resume_text = ""
+                if interview.resume_id:
+                    from app.modules.resumes.model import Resume
+                    r = await db.execute(select(Resume).where(Resume.id == interview.resume_id))
+                    resume = r.scalar_one_or_none()
+                    if resume:
+                        resume_text = resume.extracted_text or ""
+                results["steps"].append({"step": "resume_text", "status": "ok", "chars": len(resume_text)})
+
+                # Step 3: Generate AI questions
+                try:
+                    from app.modules.interviews.service import InterviewService
+                    svc = InterviewService()
+                    
+                    # We need a fake user for the service method if it checks permissions
+                    # But wait, start_interview needs current_user. Let's just do it directly.
+                    
+                    from langchain_google_genai import ChatGoogleGenerativeAI
+                    from langchain_core.messages import HumanMessage
+                    from app.core.config import get_settings
+                    import json as json_mod
+
+                    cfg = get_settings()
+                    llm = ChatGoogleGenerativeAI(
+                        model="gemini-1.5-flash",
+                        google_api_key=cfg.GEMINI_API_KEY,
+                        temperature=0.7,
+                    )
+
+                    total_q = interview.total_questions
+                    technical_count = max(1, int(total_q * 0.4))
+                    behavioral_count = max(1, int(total_q * 0.35))
+                    situational_count = max(1, total_q - technical_count - behavioral_count)
+
+                    resume_context = f"\n\nResume text:\n{resume_text[:3000]}" if resume_text else ""
+
+                    prompt = f"""Generate exactly {total_q} interview questions for a {interview.job_title} position.{resume_context}
+
+        Question distribution:
+        - TECHNICAL: {technical_count} questions
+        - BEHAVIORAL: {behavioral_count} questions  
+        - SITUATIONAL: {situational_count} questions
+
+        Return ONLY a valid JSON array (no markdown, no explanation):
+        [
+          {{"text": "Question here?", "type": "TECHNICAL", "order_index": 1}},
+          ...
+        ]"""
+
+                    response = await llm.ainvoke([HumanMessage(content=prompt)])
+                    content = response.content.strip()
+                    if content.startswith("```"):
+                        content = content.split("```")[1]
+                        if content.startswith("json"):
+                            content = content[4:]
+                    content = content.strip()
+                    questions = json_mod.loads(content)
+                    for i, q in enumerate(questions):
+                        q["order_index"] = i + 1
+                        
+                    results["steps"].append({"step": "ai_generate", "status": "ok", "count": len(questions)})
+                except Exception as e:
+                    results["steps"].append({"step": "ai_generate", "status": "error", "error": str(e), "traceback": tb.format_exc()})
+                    # Use fallback questions
+                    jt = interview.job_title
+                    questions = [
+                        {"text": f"Tell me about your background and experience as a {jt}.", "type": "BEHAVIORAL", "order_index": 1},
+                        {"text": f"What are the core technical skills required for a {jt} role?", "type": "TECHNICAL", "order_index": 2},
+                        {"text": "Describe a challenging project you worked on and how you solved it.", "type": "BEHAVIORAL", "order_index": 3},
+                    ]
+                    questions = questions[:interview.total_questions]
+                    results["steps"].append({"step": "fallback_questions", "status": "ok", "count": len(questions)})
+
+                # Step 4: Delete old questions and save new ones
+                await db.execute(
+                    __import__("sqlalchemy").delete(Question).where(Question.interview_id == iid)
+                )
+                for q in questions:
+                    db.add(Question(
+                        interview_id=iid,
+                        text=q["text"],
+                        order_index=q.get("order_index", 1),
+                        question_type=q.get("type", "TECHNICAL"),
+                    ))
+                await db.flush()
+                await db.commit()
+                results["steps"].append({"step": "save_questions", "status": "ok", "saved": len(questions)})
+
+                # Step 5: Set status ACTIVE
+                interview.status = "ACTIVE"
+                await db.flush()
+                await db.commit()
+                results["steps"].append({"step": "set_active", "status": "ok"})
+                results["final_status"] = "ACTIVE"
+                results["questions_saved"] = len(questions)
+
+            except Exception as e:
+                results["error"] = str(e)
+                results["traceback"] = tb.format_exc()
+
+        return results
+
     @app.get("/api/debug/system", tags=["Debug"])
     async def debug_system():
         from app.core.database import engine, create_tables
