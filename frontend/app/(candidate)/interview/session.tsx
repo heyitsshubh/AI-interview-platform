@@ -11,6 +11,7 @@ import {
   AppStateStatus,
   Alert,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -223,6 +224,9 @@ export default function InterviewSessionScreen() {
             text: answerText,
           })
         );
+      } else {
+        Alert.alert("Connection Error", "WebSocket is not connected. Your answer could not be sent.");
+        console.error("WebSocket readyState:", wsRef.current?.readyState);
       }
     },
     [currentQuestion]
@@ -277,6 +281,15 @@ export default function InterviewSessionScreen() {
     inputRange: [0, 1],
     outputRange: ['0%', '100%'],
   });
+
+  if (!currentQuestion && !sessionCompleted) {
+    return (
+      <View style={styles.loadingRoot}>
+        <ActivityIndicator size="large" color={Colors.accent} />
+        <Text style={styles.loadingText}>Loading questions...</Text>
+      </View>
+    );
+  }
 
   // Completion screen
   if (sessionCompleted) {

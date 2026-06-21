@@ -11,7 +11,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAppDispatch, useAppSelector } from '../../../src/store';
-import { startInterviewThunk, setCurrentInterview } from '../../../src/store/slices/interviewSlice';
+import { startInterviewThunk, setCurrentInterview, setQuestions as setReduxQuestions } from '../../../src/store/slices/interviewSlice';
 import { InterviewService, Question } from '../../../src/services/interviewService';
 import { Colors } from '../../../src/theme/colors';
 
@@ -45,12 +45,29 @@ export default function InterviewDetailScreen() {
   const [expandedQ, setExpandedQ] = useState<string | null>(null);
   const [fetchingQuestions, setFetchingQuestions] = useState(false);
   const [startingInterview, setStartingInterview] = useState(false);
+  const [isWaitingForGeneration, setIsWaitingForGeneration] = useState(false);
 
   useEffect(() => {
     if (interview?.status === 'ACTIVE' || interview?.status === 'COMPLETED') {
       loadQuestions();
     }
-  }, [interview?.status]);
+    
+    // Automatically navigate if we were waiting for generation and it finished
+    if (isWaitingForGeneration && interview?.status === 'ACTIVE') {
+      setIsWaitingForGeneration(false);
+      handleContinue();
+    }
+    
+    let interval: NodeJS.Timeout;
+    if (interview?.status === 'GENERATING') {
+      interval = setInterval(() => {
+        dispatch(fetchHistoryThunk());
+      }, 2000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [interview?.status, dispatch, isWaitingForGeneration]);
 
   const loadQuestions = async () => {
     if (!id) return;
@@ -71,14 +88,25 @@ export default function InterviewDetailScreen() {
     dispatch(setCurrentInterview(interview));
     const result = await dispatch(startInterviewThunk(id));
     setStartingInterview(false);
+    
+    // If the status is ACTIVE, we can navigate immediately. If GENERATING, we stay and let the polling take over.
     if (startInterviewThunk.fulfilled.match(result)) {
-      router.push('/(candidate)/interview/session');
+      if (result.payload.status === 'ACTIVE') {
+        router.push('/(candidate)/interview/session');
+      } else if (result.payload.status === 'GENERATING') {
+        setIsWaitingForGeneration(true);
+        // Just trigger a re-fetch of history to update the local object
+        dispatch(fetchHistoryThunk());
+      }
     }
   };
 
   const handleContinue = () => {
     if (!interview) return;
     dispatch(setCurrentInterview(interview));
+    if (questions.length > 0) {
+      dispatch(setReduxQuestions(questions));
+    }
     router.push('/(candidate)/interview/session');
   };
 
@@ -152,6 +180,15 @@ export default function InterviewDetailScreen() {
               </Text>
             </LinearGradient>
           </TouchableOpacity>
+        )}
+
+        {interview.status === 'GENERATING' && (
+          <View style={[styles.actionBtn, { backgroundColor: '#1e2a4a', borderColor: '#e94560', borderWidth: 1 }]}>
+            <ActivityIndicator size="small" color="#e94560" style={{ marginRight: 10 }} />
+            <Text style={[styles.actionBtnText, { color: '#e94560' }]}>
+              AI is tailoring your questions...
+            </Text>
+          </View>
         )}
 
         {interview.status === 'ACTIVE' && (

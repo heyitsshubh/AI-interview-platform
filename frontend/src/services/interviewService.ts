@@ -4,7 +4,7 @@ export interface Interview {
   id: string;
   user_id: string;
   job_title: string;
-  status: 'PENDING' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
+  status: 'PENDING' | 'GENERATING' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
   total_questions: number;
   created_at: string;
 }

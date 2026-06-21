@@ -12,6 +12,7 @@ from app.core.database import Base
 
 class InterviewStatus(str, PyEnum):
     PENDING = "PENDING"
+    GENERATING = "GENERATING"
     ACTIVE = "ACTIVE"
     COMPLETED = "COMPLETED"
     CANCELLED = "CANCELLED"

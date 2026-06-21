@@ -73,6 +73,31 @@ services:
     networks:
       - ai_interview_net
 
+  # ─── Celery Worker (Python) ───────────────────────────────────────────────────
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ai_interview_celery
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-securepassword}@postgres:5432/ai_interview
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      - ./backend/storage:/app/storage
+      - ./backend:/app
+    command: ["celery", "-A", "app.core.celery_app", "worker", "--loglevel=info"]
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - ai_interview_net
+
   # ─── Node.js BullMQ Worker ────────────────────────────────────────────────────
   worker:
     build:

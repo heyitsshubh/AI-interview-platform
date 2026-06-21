@@ -60,9 +60,14 @@ export const startInterviewThunk = createAsyncThunk(
   'interview/start',
   async (id: string, { rejectWithValue }) => {
     try {
-      await InterviewService.startInterview(id);
+      const startRes = await InterviewService.startInterview(id);
+      
+      if (startRes.status === 'GENERATING') {
+        return { id, status: 'GENERATING', questions: [] };
+      }
+      
       const questions = await InterviewService.getQuestions(id);
-      return { id, questions };
+      return { id, status: 'ACTIVE', questions };
     } catch (e: any) {
       return rejectWithValue(e.response?.data?.detail || 'Failed to start interview');
     }

@@ -37,6 +37,16 @@ class Settings(BaseSettings):
     REDIS_PORT: int = 6379
     REDIS_PASSWORD: str | None = None
 
+    @property
+    def redis_url(self) -> str:
+        if self.REDIS_PASSWORD:
+            return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/0"
+        return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/0"
+
+    @property
+    def celery_broker_url(self) -> str:
+        return self.redis_url
+
     # JWT
     JWT_SECRET_KEY: str = "super-secret-jwt-key-change-in-production"
     JWT_ALGORITHM: str = "HS256"

@@ -135,6 +135,10 @@ async def interview_websocket_session(
     """
     await websocket.accept()
 
+    # Log connection unconditionally
+    with open('/app/error.log', 'a') as f:
+        f.write(f"WEBSOCKET CONNECTION OPENED FOR INTERVIEW {interview_id}\n")
+
     # Authenticate
     try:
         payload = decode_token(token)
@@ -204,13 +208,24 @@ async def interview_websocket_session(
                         answer_text = message.get("text", "")
 
                         # Save answer
-                        await repo.save_answer(
-                            db,
-                            interview_id=interview_id,
-                            question_id=question_id,
-                            user_id=user_id,
-                            text=answer_text,
-                        )
+                        with open('/app/error.log', 'a') as f:
+                            f.write(f"RECEIVED ANSWER PAYLOAD FOR QUESTION {question_id}\n")
+                            
+                        try:
+                            await repo.save_answer(
+                                db,
+                                interview_id=interview_id,
+                                question_id=question_id,
+                                user_id=user_id,
+                                text=answer_text,
+                            )
+                        except Exception as e:
+                            import traceback
+                            with open('/app/error.log', 'a') as f:
+                                f.write(f"Error saving answer: {e}\n")
+                                f.write(traceback.format_exc() + "\n")
+                            # Continue anyway to see if the rest of the flow works
+                            
                         answered_count += 1
                         current_q_index += 1
 

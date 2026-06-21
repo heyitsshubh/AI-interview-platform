@@ -133,6 +133,7 @@ class InterviewRepository:
         )
         db.add(answer)
         await db.flush()
+        await db.commit()
         await db.refresh(answer)
         return answer
 
