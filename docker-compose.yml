@@ -51,8 +51,8 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-securepassword}@postgres:5432/ai_interview
-      - REDIS_HOST=redis
+      - DATABASE_URL=postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-securepassword}@ai_interview_postgres:5432/ai_interview
+      - REDIS_HOST=ai_interview_redis
       - REDIS_PORT=6379
     volumes:
       - ./backend/storage:/app/storage
@@ -83,8 +83,8 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-securepassword}@postgres:5432/ai_interview
-      - REDIS_HOST=redis
+      - DATABASE_URL=postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-securepassword}@ai_interview_postgres:5432/ai_interview
+      - REDIS_HOST=ai_interview_redis
       - REDIS_PORT=6379
     volumes:
       - ./backend/storage:/app/storage
@@ -108,9 +108,9 @@ services:
     env_file:
       - .env
     environment:
-      - REDIS_HOST=redis
+      - REDIS_HOST=ai_interview_redis
       - REDIS_PORT=6379
-      - API_BASE_URL=http://backend:8000
+      - API_BASE_URL=http://ai_interview_backend:8000
     depends_on:
       redis:
         condition: service_healthy
@@ -128,7 +128,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-securepassword}@postgres:5432/ai_interview
+      - DATABASE_URL=postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-securepassword}@ai_interview_postgres:5432/ai_interview
     command: ["sh", "-c", "alembic upgrade head && echo 'Migrations complete'"]
     depends_on:
       postgres:

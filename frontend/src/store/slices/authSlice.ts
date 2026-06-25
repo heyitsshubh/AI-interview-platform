@@ -136,7 +136,11 @@ const authSlice = createSlice({
     });
 
     // ── Load User ───────────────────────────────────────────────────────────
+    builder.addCase(loadUserThunk.pending, (state) => {
+      state.loading = true;
+    });
     builder.addCase(loadUserThunk.fulfilled, (state, action) => {
+      state.loading = false;
       state.isAuthenticated = true;
       state.user = action.payload.user;
       state.accessToken = action.payload.accessToken;
@@ -144,6 +148,7 @@ const authSlice = createSlice({
       state.role = action.payload.user.roles[0] as 'CANDIDATE' | 'RECRUITER';
     });
     builder.addCase(loadUserThunk.rejected, (state) => {
+      state.loading = false;
       state.isAuthenticated = false;
       state.user = null;
       state.accessToken = null;

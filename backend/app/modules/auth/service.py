@@ -19,26 +19,35 @@ class AuthService:
 
     async def register(self, db: AsyncSession, signup_data: SignupRequest) -> TokenResponse:
         """Register a new user and return auth tokens."""
-        existing = await self.repo.get_by_email(db, signup_data.email)
-        if existing:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Email already registered",
+        try:
+            existing = await self.repo.get_by_email(db, signup_data.email)
+            if existing:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Email already registered",
+                )
+
+            hashed = hash_password(signup_data.password)
+            user = await self.repo.create_user(
+                db, signup_data.email, hashed, signup_data.full_name
             )
+            await self.repo.assign_role(db, user.id, signup_data.role)
+            await db.refresh(user)
 
-        hashed = hash_password(signup_data.password)
-        user = await self.repo.create_user(
-            db, signup_data.email, hashed, signup_data.full_name
-        )
-        await self.repo.assign_role(db, user.id, signup_data.role)
-        await db.refresh(user)
+            roles = await self.repo.get_user_roles(db, user.id)
+            access_token = create_access_token(str(user.id), roles)
+            refresh_token = create_refresh_token(str(user.id))
 
-        roles = await self.repo.get_user_roles(db, user.id)
-        access_token = create_access_token(str(user.id), roles)
-        refresh_token = create_refresh_token(str(user.id))
-
-        logger.info(f"User registered: {user.email} with role {signup_data.role}")
-        return TokenResponse(access_token=access_token, refresh_token=refresh_token)
+            logger.info(f"User registered: {user.email} with role {signup_data.role}")
+            return TokenResponse(access_token=access_token, refresh_token=refresh_token)
+        except Exception as e:
+            if isinstance(e, HTTPException):
+                raise
+            import traceback
+            with open('/app/error.log', 'w') as f:
+                f.write(f"Register Error: {e}\n")
+                f.write(traceback.format_exc() + "\n")
+            raise
 
     async def login(self, db: AsyncSession, login_data: LoginRequest) -> TokenResponse:
         """Authenticate user and return tokens."""
