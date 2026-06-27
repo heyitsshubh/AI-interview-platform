@@ -29,7 +29,7 @@ import { completeInterviewThunk } from '../../../src/store/slices/interviewSlice
 import { CheatingService } from '../../../src/services/cheatingService';
 import { Colors } from '../../../src/theme/colors';
 
-const WS_BASE = (process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.100:8000').replace('http', 'ws');
+const WS_BASE = (process.env.EXPO_PUBLIC_API_URL || 'http://192.168.0.109:8000').replace('http', 'ws');
 
 function WaveformBar({ index, isRecording }: { index: number; isRecording: boolean }) {
   const anim = useRef(new Animated.Value(0.3)).current;

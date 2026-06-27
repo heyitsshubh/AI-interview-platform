@@ -10,7 +10,16 @@ from sqlalchemy import select
 
 from app.core.celery_app import celery_app
 
+# ── Critical: import ALL models so SQLAlchemy mapper is fully initialized ──────
+import app.modules.users.model      # noqa: F401
+import app.modules.roles.model      # noqa: F401
+import app.modules.resumes.model    # noqa: F401
+import app.modules.interviews.model # noqa: F401
+import app.modules.cheating.model   # noqa: F401
+# ───────────────────────────────────────────────────────────────────────────────
+
 logger = logging.getLogger(__name__)
+
 
 async def _generate_interview_questions_async(interview_id_str: str):
     from app.core.database import AsyncSessionLocal
@@ -48,28 +57,32 @@ async def _generate_interview_questions_async(interview_id_str: str):
                 if resume and resume.extracted_text:
                     resume_text = resume.extracted_text
 
-            # Generate questions using Gemini
-            cfg = get_settings()
-            llm = ChatGoogleGenerativeAI(
-                model="gemini-1.5-flash",
-                google_api_key=cfg.GEMINI_API_KEY,
-                temperature=0.7,
-                safety_settings={
-                    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-                    HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-                    HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-                    HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-                }
-            )
+            questions = None
 
-            total_q = interview.total_questions
-            technical_count = max(1, int(total_q * 0.4))
-            behavioral_count = max(1, int(total_q * 0.35))
-            situational_count = max(1, total_q - technical_count - behavioral_count)
+            # Try Gemini — if quota/unavailable, immediately fall back to pre-built questions
+            try:
+                cfg = get_settings()
+                llm = ChatGoogleGenerativeAI(
+                    model="gemini-2.0-flash",
+                    google_api_key=cfg.GEMINI_API_KEY,
+                    temperature=0.7,
+                    max_retries=1,   # Only 1 retry — don't wait minutes on quota errors
+                    safety_settings={
+                        HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+                        HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+                        HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+                        HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+                    }
+                )
 
-            resume_context = f"\n\nResume text:\n{resume_text[:4000]}" if resume_text else ""
+                total_q = interview.total_questions
+                technical_count = max(1, int(total_q * 0.4))
+                behavioral_count = max(1, int(total_q * 0.35))
+                situational_count = max(1, total_q - technical_count - behavioral_count)
 
-            prompt = f"""Generate exactly {total_q} interview questions for a {interview.job_title} position.{resume_context}
+                resume_context = f"\n\nResume text:\n{resume_text[:4000]}" if resume_text else ""
+
+                prompt = f"""Generate exactly {total_q} interview questions for a {interview.job_title} position.{resume_context}
 
 Make sure the questions are deeply tailored to the candidate's specific experience and skills mentioned in the resume.
 
@@ -84,21 +97,45 @@ Return ONLY a valid JSON array (no markdown, no explanation):
   ...
 ]"""
 
-            response = await llm.ainvoke([HumanMessage(content=prompt)])
-            content = response.content.strip()
-            
-            match = re.search(r'\[.*\]', content, re.DOTALL)
-            if match:
-                content = match.group(0)
-                
-            questions = json_mod.loads(content)
-            
-            for i, q in enumerate(questions):
-                q["order_index"] = i + 1
-                if "type" not in q:
-                    q["type"] = "TECHNICAL"
-            
-            # Save questions
+                response = await llm.ainvoke([HumanMessage(content=prompt)])
+                content = response.content.strip()
+
+                match = re.search(r'\[.*\]', content, re.DOTALL)
+                if match:
+                    content = match.group(0)
+
+                questions = json_mod.loads(content)
+                for i, q in enumerate(questions):
+                    q["order_index"] = i + 1
+                    if "type" not in q:
+                        q["type"] = "TECHNICAL"
+
+                logger.info(f"Gemini generated {len(questions)} questions for interview {interview_id}")
+
+            except Exception as ai_exc:
+                logger.warning(f"Gemini unavailable ({type(ai_exc).__name__}): {ai_exc}. Using fallback questions.")
+                questions = None  # Will use fallback below
+
+            # Build fallback questions if AI failed
+            if not questions:
+                jt = interview.job_title
+                total_q = interview.total_questions
+                all_fallback = [
+                    {"text": f"Tell me about your background and experience as a {jt}.", "type": "BEHAVIORAL", "order_index": 1},
+                    {"text": f"What are the core technical skills required for a {jt} role?", "type": "TECHNICAL", "order_index": 2},
+                    {"text": "Describe a challenging project you worked on and how you solved it.", "type": "BEHAVIORAL", "order_index": 3},
+                    {"text": "How do you approach debugging a complex issue in production?", "type": "SITUATIONAL", "order_index": 4},
+                    {"text": "What development tools and workflows do you use daily?", "type": "TECHNICAL", "order_index": 5},
+                    {"text": "How do you handle disagreements with teammates about technical decisions?", "type": "BEHAVIORAL", "order_index": 6},
+                    {"text": "Walk me through how you would design a scalable system from scratch.", "type": "TECHNICAL", "order_index": 7},
+                    {"text": "Describe a time you had to learn a new technology quickly.", "type": "BEHAVIORAL", "order_index": 8},
+                    {"text": "How do you prioritise tasks when working under tight deadlines?", "type": "SITUATIONAL", "order_index": 9},
+                    {"text": "What motivates you in your work and where do you see yourself in 3 years?", "type": "BEHAVIORAL", "order_index": 10},
+                ]
+                questions = all_fallback[:total_q]
+                logger.info(f"Using {len(questions)} fallback questions for interview {interview_id}")
+
+            # Save whichever questions we have (AI or fallback)
             for q in questions:
                 await repo.add_question(
                     db,
@@ -107,10 +144,11 @@ Return ONLY a valid JSON array (no markdown, no explanation):
                     order_index=q.get("order_index", 1),
                     question_type=q.get("type", "TECHNICAL"),
                 )
-                
+
             await repo.update_status(db, interview_id, "ACTIVE")
             await db.commit()
-            logger.info(f"Celery generation completed for interview {interview_id}")
+            logger.info(f"Questions saved and interview {interview_id} set ACTIVE.")
+
             
     except Exception as exc:
         logger.error(f"Celery question generation failed for {interview_id_str}: {exc}")

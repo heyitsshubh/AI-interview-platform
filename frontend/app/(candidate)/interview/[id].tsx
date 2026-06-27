@@ -11,7 +11,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAppDispatch, useAppSelector } from '../../../src/store';
-import { startInterviewThunk, setCurrentInterview, setQuestions as setReduxQuestions } from '../../../src/store/slices/interviewSlice';
+import { startInterviewThunk, fetchHistoryThunk, setCurrentInterview, setQuestions as setReduxQuestions } from '../../../src/store/slices/interviewSlice';
 import { InterviewService, Question } from '../../../src/services/interviewService';
 import { Colors } from '../../../src/theme/colors';
 

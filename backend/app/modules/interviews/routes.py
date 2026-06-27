@@ -250,7 +250,19 @@ async def interview_websocket_session(
                             if iw:
                                 iw.status = "COMPLETED"
                                 await db.flush()
-                                await db.commit()
+
+                            # Create the report record if it doesn't exist yet
+                            from app.modules.interviews.model import Report as ReportModel
+                            existing_report = await db.execute(
+                                sa_select(ReportModel).where(ReportModel.interview_id == interview_id)
+                            )
+                            if not existing_report.scalar_one_or_none():
+                                new_report = ReportModel(interview_id=interview_id)
+                                db.add(new_report)
+                                await db.flush()
+                                logger.info(f"Report record created for interview {interview_id}")
+
+                            await db.commit()
 
                             # Trigger AI evaluation in background (no BullMQ needed)
                             from app.background.evaluator import run_evaluation_background
@@ -263,6 +275,7 @@ async def interview_websocket_session(
                                 "answered_questions": answered_count,
                             })
                             break
+
 
                     elif msg_type == "ping":
                         await websocket.send_json({"type": "pong"})

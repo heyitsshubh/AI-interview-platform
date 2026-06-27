@@ -12,6 +12,18 @@ Client ──► FastAPI Backend ──► PostgreSQL
                 └──► Google Speech-to-Text (Voice)
 ```
 
+## Screenshots
+
+*(To add your own screenshots, save them in an `assets` folder at the root of the project and replace the links below)*
+
+<div align="center">
+  <img src="./assets/home.jpg" alt="Home Screen" width="200"/>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="./assets/interview.jpg" alt="Active Interview" width="200"/>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="./assets/report.jpg" alt="Interview Report" width="200"/>
+</div>
+
 ## Quick Start
 
 ### 1. Clone and Configure

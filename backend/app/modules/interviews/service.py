@@ -24,14 +24,13 @@ class InterviewService:
         resume_id: uuid.UUID | None,
         total_questions: int = 10,
     ):
-        """Create a new interview for the current candidate."""
+        """Create a new interview and immediately pre-generate questions in background."""
         from sqlalchemy import select
         from app.modules.resumes.model import Resume
 
         validated_resume_id = None
 
         if resume_id is not None:
-            # Validate the resume exists AND belongs to this user
             result = await db.execute(
                 select(Resume).where(
                     Resume.id == resume_id,
@@ -44,7 +43,6 @@ class InterviewService:
             else:
                 logger.warning(f"Resume {resume_id} not found or doesn't belong to user — falling back to latest")
 
-        # If no valid resume provided, auto-pick the latest DONE resume
         if validated_resume_id is None and "CANDIDATE" in current_user.roles:
             result = await db.execute(
                 select(Resume)
@@ -58,7 +56,15 @@ class InterviewService:
         interview = await self.repo.create_interview(
             db, current_user.id, validated_resume_id, job_title, job_description, total_questions
         )
+        await db.commit()
+
+        # Pre-generate questions immediately in background so they're ready when user taps Start
+        from app.tasks.celery_tasks import generate_questions_task
+        generate_questions_task.delay(str(interview.id))
+        logger.info(f"Interview {interview.id} created — question pre-generation dispatched immediately.")
+
         return interview
+
 
 
     async def get_interview(self, db: AsyncSession, interview_id: uuid.UUID, current_user):
@@ -85,25 +91,41 @@ class InterviewService:
         return await self.repo.get_user_interviews(db, current_user.id)
 
     async def start_interview(self, db: AsyncSession, interview_id: uuid.UUID, current_user) -> dict:
-        """Start an interview: set status ACTIVE and generate questions via AI."""
+        """Start an interview: set ACTIVE immediately if questions are pre-generated, else trigger generation."""
         interview = await self.get_interview(db, interview_id, current_user)
 
-        if interview.status != "PENDING":
+        if interview.status == "ACTIVE":
+            logger.info(f"Interview {interview_id} is already ACTIVE.")
+            return {"status": "ACTIVE"}
+
+        if interview.status not in ("PENDING", "GENERATING"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Cannot start interview in status {interview.status}",
             )
 
-        from app.tasks.celery_tasks import generate_questions_task
-        
-        await self.repo.update_status(db, interview_id, "GENERATING")
-        await db.commit()
-        
-        # Trigger Celery background task
-        generate_questions_task.delay(str(interview_id))
-        
-        logger.info(f"Interview {interview_id} status set to GENERATING, Celery task dispatched.")
-        return {"status": "GENERATING"}
+        from sqlalchemy import select
+        from app.modules.interviews.model import Question
+
+        # Check if questions are already pre-generated
+        result = await db.execute(select(Question).where(Question.interview_id == interview_id).limit(1))
+        questions_ready = result.scalars().first() is not None
+
+        if questions_ready:
+            # Questions already exist — go ACTIVE instantly!
+            await self.repo.update_status(db, interview_id, "ACTIVE")
+            await db.commit()
+            logger.info(f"Interview {interview_id} started instantly — questions were pre-generated.")
+            return {"status": "ACTIVE"}
+        else:
+            # Questions not ready yet — trigger generation and tell frontend to wait
+            await self.repo.update_status(db, interview_id, "GENERATING")
+            await db.commit()
+            from app.tasks.celery_tasks import generate_questions_task
+            generate_questions_task.delay(str(interview_id))
+            logger.info(f"Interview {interview_id} — questions not ready yet, re-dispatching generation.")
+            return {"status": "GENERATING"}
+
 
     async def complete_interview(self, db: AsyncSession, interview_id: uuid.UUID, current_user) -> dict:
         """Mark interview as completed and create report record."""

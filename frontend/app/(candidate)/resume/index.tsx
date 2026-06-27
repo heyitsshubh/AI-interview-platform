@@ -127,6 +127,17 @@ export default function ResumeListScreen() {
     dispatch(fetchResumesThunk());
   }, []);
 
+  useEffect(() => {
+    // If any resume is still processing, poll every 3 seconds
+    const hasPending = resumes.some(r => r.status === 'PENDING' || r.status === 'PROCESSING');
+    if (!hasPending) return;
+
+    const interval = setInterval(() => {
+      dispatch(fetchResumesThunk());
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [resumes, dispatch]);
+
   const onRefresh = useCallback(() => {
     dispatch(fetchResumesThunk());
   }, [dispatch]);

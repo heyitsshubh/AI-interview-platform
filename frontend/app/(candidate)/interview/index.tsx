@@ -80,6 +80,17 @@ export default function InterviewHistoryScreen() {
     dispatch(fetchHistoryThunk());
   }, []);
 
+  useEffect(() => {
+    // If any interview is pending or generating, poll every 3 seconds
+    const hasPending = interviews.some(i => i.status === 'PENDING' || i.status === 'GENERATING');
+    if (!hasPending) return;
+
+    const interval = setInterval(() => {
+      dispatch(fetchHistoryThunk());
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [interviews, dispatch]);
+
   const onRefresh = useCallback(() => {
     dispatch(fetchHistoryThunk());
   }, [dispatch]);
