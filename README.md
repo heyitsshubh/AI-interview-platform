@@ -1,12 +1,12 @@
 # AI Interview Platform
 
-A production-grade AI Interview SaaS Platform with voice processing, cheating detection, LangGraph AI agents, and BullMQ background jobs.
+A production-grade AI Interview SaaS Platform with voice processing, cheating detection, LangGraph AI agents, and Celery background jobs.
 
 ## Architecture
 
 ```
 Client ──► FastAPI Backend ──► PostgreSQL
-                ├──► Redis Queue ──► BullMQ Worker
+                ├──► Redis Queue ──► Celery Worker
                 ├──► Google Gemini (AI)
                 ├──► OpenAI Embeddings + FAISS
                 └──► Google Speech-to-Text (Voice)
@@ -78,7 +78,7 @@ cd backend && alembic upgrade head
 | Embeddings | OpenAI text-embedding-3-small |
 | Vector DB | FAISS (local) |
 | Voice | Google Cloud Speech-to-Text |
-| Queue | Redis + BullMQ (Node.js) |
+| Queue | Redis + Celery (Python) |
 | Email | SMTP (Nodemailer) |
 | Reports | ReportLab PDF |
 | Deployment | Docker + Docker Compose |
@@ -167,13 +167,11 @@ GET   /api/users       List candidates (RECRUITER)
 
 ---
 
-## BullMQ Job Queues
+## Celery Background Tasks
 
-| Queue | Job | Triggered By |
+| Queue | Task | Triggered By |
 |---|---|---|
-| resume-processing | PROCESS_RESUME | Resume upload |
-| generate-report | GENERATE_REPORT | Interview completion |
-| send-email | SEND_EMAIL | Resume processed / Interview done |
+| celery | generate_questions_task | Interview creation |
 
 ---
 
@@ -203,10 +201,9 @@ cd backend
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 
-# Worker only
-cd worker
-npm install
-npm run dev
+# Worker only (Celery)
+cd backend
+celery -A app.core.celery_app worker --loglevel=info
 
 # Database migration
 cd backend
